@@ -14,10 +14,29 @@ jobs:
         with:
           lfs: true
 
+      - name: Detect Unity license configuration
+        id: license
+        run: |
+          if [ -n "${{ secrets.UNITY_LICENSE }}" ] || [ -n "${{ secrets.UNITY_SERIAL }}" ]; then
+            echo "has_license=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_license=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip build when no Unity license secrets are set
+        if: steps.license.outputs.has_license != 'true'
+        run: |
+          echo "UNITY_LICENSE/UNITY_SERIAL not configured."
+          echo "Skipping Unity build check. Configure Unity secrets to enable this job."
+
       - name: Build StandaloneOSX proxy artifact
+        if: steps.license.outputs.has_license == 'true'
         uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           unityVersion: 2022.3.62f1
           targetPlatform: StandaloneOSX
@@ -25,8 +44,8 @@ jobs:
           buildMethod: DontLetThemIn.Utils.Editor.CIBuild.BuildStandaloneOSX
 
       - name: Upload build artifact
+        if: always() && steps.license.outputs.has_license == 'true'
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: standalone-osx-build
           path: Builds/StandaloneOSX

@@ -128,6 +128,8 @@ Required repo secret for GameCI workflows:
 
 - `UNITY_LICENSE`
 
+If Unity license secrets are not configured yet, Unity build/test jobs auto-skip with a clear log message so baseline CI remains green while repository bootstrap and non-Unity checks continue.
+
 ## Agent Pipeline (10 Stages)
 
 1. Floor Layout & Path System - **Complete (current scaffold)**
