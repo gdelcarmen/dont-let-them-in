@@ -174,3 +174,5 @@ outcomes, retries, and intervention notes. Update it at the end of each stage so
 and process decisions remain auditable.
 
 Deferred Unity validations are tracked in `docs/stage1_unity_verification_checklist.md` and should be completed before promoting Stage 1 from partial to fully verified.
+
+Initialization completion/deferred status for the 10-point setup checklist is tracked in `docs/stage1_initialization_status.md`.

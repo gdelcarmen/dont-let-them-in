@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-03-04T04:10:30Z",
+  "timestamp": "2026-03-04T04:12:46Z",
   "pipeline_stage": "stage1_floor_layout_path_system",
-  "action": "document_deferred_unity_validation_checklist",
+  "action": "publish_stage1_completion_matrix_and_deferred_checks",
   "tool_used": "unity_lts",
   "outcome": "partial",
   "retry_count": 0,
   "human_intervention_required": true,
-  "intervention_reason": "Unity Editor and licensed GameCI execution are still required to complete runtime and build verification beyond scaffold/code checks.",
-  "notes": "Added docs/stage1_unity_verification_checklist.md to enumerate every deferred check: Unity import/scene generation, IL2CPP iOS setting verification, runtime prototype behavior, EditMode/PlayMode execution in Unity Test Runner, licensed GameCI run validation, iOS Xcode archive, LFS/meta hygiene, and final experiment log success update. Repository remains synchronized to https://github.com/gdelcarmen/dont-let-them-in on main and codex/sweep-2026-03-04 at commit lineage including CI license gating."
+  "intervention_reason": "Unity Editor and licensed Unity execution are still required to complete runtime gameplay verification and iOS archive validation.",
+  "notes": "Added docs/stage1_initialization_status.md as a point-by-point matrix against the 10 requested initialization items, with explicit done/deferred states and CI evidence links. Deferred Unity tasks remain tracked in docs/stage1_unity_verification_checklist.md. Current repository synchronization: main and codex/sweep-2026-03-04 aligned, v0.0.1 release present, latest main workflows successful under current license-gated CI policy."
 }
