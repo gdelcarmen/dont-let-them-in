@@ -1,0 +1,104 @@
+{
+  "generated_at": "",
+  "pipeline_stage": "stage1_floor_layout_path_system",
+  "baseline_commit": "",
+  "verifier": "",
+  "environment": {
+    "os": "",
+    "unity_version": "2022.3.62f1",
+    "xcode_version": "",
+    "notes": ""
+  },
+  "checks": [
+    {
+      "id": "unity_import_compile",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "editor_auto_setup_execution",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "scriptableobject_asset_generation",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "scene_generation_build_settings",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "ios_il2cpp_player_settings",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "runtime_visual_validation",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "runtime_gameplay_loop_validation",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "unity_editmode_tests_local",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "unity_playmode_tests_local",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "gameci_tests_full_execution",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "gameci_build_full_execution",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "ios_xcode_archive_validation",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "unity_meta_file_hygiene_after_generation",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "id": "lfs_tracking_verification_with_real_assets",
+      "status": "pending",
+      "evidence": "",
+      "notes": ""
+    }
+  ],
+  "summary": {
+    "pass_count": 0,
+    "fail_count": 0,
+    "pending_count": 14,
+    "overall": "pending"
+  }
+}

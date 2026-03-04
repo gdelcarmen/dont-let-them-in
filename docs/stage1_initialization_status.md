@@ -31,6 +31,8 @@ Unity-dependent checks are intentionally deferred until Unity Editor and/or lice
 
 - `docs/stage1_unity_verification_checklist.md`
 - `docs/stage1_deferred_verification_log.json` (machine-readable status log)
+- `docs/stage1_verification_runbook.md` (step-by-step execution plan)
+- `docs/stage1_verification_evidence.template.json` (evidence capture template)
 
 ## Exit Condition for Stage 1 = Fully Verified
 
