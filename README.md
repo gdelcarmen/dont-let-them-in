@@ -172,3 +172,5 @@ Core loop target:
 `experiment_log.json` is a structured research artifact capturing pipeline stage actions,
 outcomes, retries, and intervention notes. Update it at the end of each stage so technical
 and process decisions remain auditable.
+
+Deferred Unity validations are tracked in `docs/stage1_unity_verification_checklist.md` and should be completed before promoting Stage 1 from partial to fully verified.

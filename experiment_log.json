@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-03-04T04:18:00Z",
+  "timestamp": "2026-03-04T04:10:30Z",
   "pipeline_stage": "stage1_floor_layout_path_system",
-  "action": "sync_remote_repo_and_harden_ci_license_gating",
+  "action": "document_deferred_unity_validation_checklist",
   "tool_used": "unity_lts",
   "outcome": "partial",
   "retry_count": 0,
   "human_intervention_required": true,
-  "intervention_reason": "Unity runtime verification (EditMode/PlayMode execution and StandaloneOSX build) still requires Unity license secrets in GitHub Actions and a local Unity Editor install for end-to-end manual validation.",
-  "notes": "Environment/tooling observed during verification: git 2.39.5 (Apple Git-154), git-lfs 3.7.1, gh 2.87.3 (authenticated as gdelcarmen with repo/workflow scopes), dotnet CLI unavailable locally, Unity CLI/editor unavailable locally. Remote sync: repository gdelcarmen/dont-let-them-in exists with branches main and codex/sweep-2026-03-04, tag/release v0.0.1. CI inspection: CSharp Lint passed; Unity Build Check and Unity Tests failed only due to missing UNITY_LICENSE/UNITY_SERIAL secrets. Decisions implemented: (1) keep GameCI unity-builder and unity-test-runner workflows, (2) add explicit license detection and conditional skip messaging when Unity secrets are absent, (3) pass through UNITY_LICENSE/UNITY_SERIAL/UNITY_EMAIL/UNITY_PASSWORD to support both file and serial activation modes, (4) upload Unity artifacts only when Unity jobs execute, (5) document CI gating behavior in README."
+  "intervention_reason": "Unity Editor and licensed GameCI execution are still required to complete runtime and build verification beyond scaffold/code checks.",
+  "notes": "Added docs/stage1_unity_verification_checklist.md to enumerate every deferred check: Unity import/scene generation, IL2CPP iOS setting verification, runtime prototype behavior, EditMode/PlayMode execution in Unity Test Runner, licensed GameCI run validation, iOS Xcode archive, LFS/meta hygiene, and final experiment log success update. Repository remains synchronized to https://github.com/gdelcarmen/dont-let-them-in on main and codex/sweep-2026-03-04 at commit lineage including CI license gating."
 }
