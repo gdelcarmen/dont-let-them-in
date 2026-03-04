@@ -17,8 +17,12 @@ namespace DontLetThemIn.Waves
         private GridNode _safeRoom;
         private WaveConfig[] _waveConfigs;
         private AlienData _defaultAlien;
+        private int _nextRoundRobinEntryIndex;
 
         public event Action<int, int> WaveChanged;
+        public event Action<int, int, WaveConfig> WaveStarted;
+        public event Action<int, int, WaveConfig> WaveCompleted;
+        public event Action<AlienBase> AlienSpawned;
         public event Action<AlienBase> AlienKilled;
         public event Action<AlienBase> AlienReachedSafeRoom;
         public event Action AllWavesCompleted;
@@ -45,6 +49,7 @@ namespace DontLetThemIn.Waves
             _safeRoom = safeRoom;
             _waveConfigs = waveConfigs;
             _defaultAlien = defaultAlien;
+            _nextRoundRobinEntryIndex = 0;
         }
 
         public void StartWaves()
@@ -56,25 +61,47 @@ namespace DontLetThemIn.Waves
         {
             HasCompletedAllWaves = false;
             TotalSpawned = 0;
-
-            for (int waveIndex = 0; waveIndex < _waveConfigs.Length; waveIndex++)
+            WaveConfig[] waveSet = _waveConfigs ?? Array.Empty<WaveConfig>();
+            if (waveSet.Length == 0)
             {
-                WaveConfig waveConfig = _waveConfigs[waveIndex];
-                CurrentWave = waveIndex + 1;
-                WaveChanged?.Invoke(CurrentWave, _waveConfigs.Length);
+                HasCompletedAllWaves = true;
+                AllWavesCompleted?.Invoke();
+                yield break;
+            }
 
-                foreach (WaveSpawnDirective directive in waveConfig.Spawns)
+            for (int waveIndex = 0; waveIndex < waveSet.Length; waveIndex++)
+            {
+                WaveConfig waveConfig = waveSet[waveIndex];
+                CurrentWave = waveIndex + 1;
+                WaveChanged?.Invoke(CurrentWave, waveSet.Length);
+                WaveStarted?.Invoke(CurrentWave, waveSet.Length, waveConfig);
+
+                if (waveConfig != null && waveConfig.PreWaveDelay > 0f)
                 {
-                    for (int i = 0; i < directive.Count; i++)
+                    yield return new WaitForSeconds(waveConfig.PreWaveDelay);
+                }
+
+                if (waveConfig?.Spawns != null)
+                {
+                    foreach (WaveSpawnDirective directive in waveConfig.Spawns)
                     {
-                        SpawnAlien(directive);
-                        if (directive.SpawnDelay > 0f)
+                        if (directive == null || directive.Count <= 0)
                         {
-                            yield return new WaitForSeconds(directive.SpawnDelay);
+                            continue;
                         }
-                        else
+
+                        for (int i = 0; i < directive.Count; i++)
                         {
-                            yield return null;
+                            SpawnAlien(directive);
+                            float delay = Mathf.Max(0f, directive.SpawnDelay);
+                            if (delay > 0f)
+                            {
+                                yield return new WaitForSeconds(delay);
+                            }
+                            else
+                            {
+                                yield return null;
+                            }
                         }
                     }
                 }
@@ -82,6 +109,12 @@ namespace DontLetThemIn.Waves
                 while (_activeAliens.Count > 0)
                 {
                     yield return null;
+                }
+
+                WaveCompleted?.Invoke(CurrentWave, waveSet.Length, waveConfig);
+                if (waveConfig != null && waveConfig.PostWaveDelay > 0f && waveIndex < waveSet.Length - 1)
+                {
+                    yield return new WaitForSeconds(waveConfig.PostWaveDelay);
                 }
             }
 
@@ -96,19 +129,40 @@ namespace DontLetThemIn.Waves
                 return;
             }
 
-            int index = Mathf.Clamp(directive.EntryPointIndex, 0, _entryPoints.Count - 1);
+            int index = ResolveEntryPointIndex(directive);
             GridNode spawnNode = _entryPoints[index];
             AlienData alienData = directive.Alien != null ? directive.Alien : _defaultAlien;
 
-            GameObject alienObject = new($"Alien_{TotalSpawned + 1}");
-            GreyAlien alien = alienObject.AddComponent<GreyAlien>();
-            alien.BuildVisual();
+            AlienBase alien = AlienFactory.CreateAlien(alienData, TotalSpawned + 1, transform);
             alien.Initialize(alienData, _graph, spawnNode, _safeRoom);
             alien.Died += OnAlienDied;
             alien.ReachedSafeRoom += OnAlienReachedSafeRoom;
 
             _activeAliens.Add(alien);
             TotalSpawned++;
+            AlienSpawned?.Invoke(alien);
+        }
+
+        private int ResolveEntryPointIndex(WaveSpawnDirective directive)
+        {
+            if (_entryPoints.Count <= 1 || directive == null)
+            {
+                return 0;
+            }
+
+            switch (directive.EntryPointSelection)
+            {
+                case EntryPointSelection.RoundRobin:
+                {
+                    int roundRobinIndex = _nextRoundRobinEntryIndex % _entryPoints.Count;
+                    _nextRoundRobinEntryIndex++;
+                    return roundRobinIndex;
+                }
+                case EntryPointSelection.Random:
+                    return UnityEngine.Random.Range(0, _entryPoints.Count);
+                default:
+                    return Mathf.Clamp(directive.EntryPointIndex, 0, _entryPoints.Count - 1);
+            }
         }
 
         private void OnAlienDied(AlienBase alien)

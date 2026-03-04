@@ -105,6 +105,17 @@ Assets/
 - HUD includes Scrap (top-left), Wave (top-center), Integrity (top-right), restart button.
 - Game over at zero integrity; victory after all waves clear.
 
+## Stage 2 Progress (Wave + Spawning)
+
+- Wave directives support entry-point strategies: `Fixed`, `RoundRobin`, and `Random`.
+- Wave configs support `PreWaveDelay` and `PostWaveDelay`.
+- Spawner supports multiple alien subtypes via `AlienFactory` (`Grey`, `Stalker`, `TechUnit`, `Overlord` placeholders).
+- Runtime wave set now includes multi-wave mixed-alien progression for early prototype tuning.
+- PlayMode tests expanded for subtype spawning and round-robin entry behavior.
+- Deferred Unity/manual verification tracking:
+  - `docs/stage2_wave_system_status.md`
+  - `docs/stage2_wave_system_deferred_log.json`
+
 ## Build Instructions (iOS)
 
 1. In Unity: `File -> Build Settings -> iOS`.
@@ -133,7 +144,7 @@ If Unity license secrets are not configured yet, Unity build/test jobs auto-skip
 ## Agent Pipeline (10 Stages)
 
 1. Floor Layout & Path System - **Complete (current scaffold)**
-2. Alien Spawning & Wave System - Planned
+2. Alien Spawning & Wave System - **In Progress (scaffolded in code, pending Unity runtime verification)**
 3. Defense Placement & Combat - Planned
 4. Hazard & Special Systems - Planned
 5. Floor Progression & Multi-Floor System - Planned

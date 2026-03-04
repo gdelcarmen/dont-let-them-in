@@ -34,7 +34,7 @@ namespace DontLetThemIn.Utils.Editor
             EnsureProjectSetup();
         }
 
-        [MenuItem("Tools/Don't Let Them In/Generate Stage 1 Scaffold")]
+        [MenuItem("Tools/Don't Let Them In/Generate Stage 1-2 Scaffold")]
         public static void EnsureProjectSetup()
         {
             EnsureScriptableObjectAssets();
@@ -71,6 +71,20 @@ namespace DontLetThemIn.Utils.Editor
                 AssetDatabase.CreateAsset(grey, "Assets/_Project/ScriptableObjects/AlienData/Grey.asset");
             }
 
+            AlienData stalker = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/Stalker.asset");
+            if (stalker == null)
+            {
+                stalker = Stage1DataFactory.CreateStalkerAlien();
+                AssetDatabase.CreateAsset(stalker, "Assets/_Project/ScriptableObjects/AlienData/Stalker.asset");
+            }
+
+            AlienData techUnit = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/TechUnit.asset");
+            if (techUnit == null)
+            {
+                techUnit = Stage1DataFactory.CreateTechUnitAlien();
+                AssetDatabase.CreateAsset(techUnit, "Assets/_Project/ScriptableObjects/AlienData/TechUnit.asset");
+            }
+
             DefenseData defense = AssetDatabase.LoadAssetAtPath<DefenseData>("Assets/_Project/ScriptableObjects/DefenseData/Tripwire.asset");
             if (defense == null)
             {
@@ -78,24 +92,69 @@ namespace DontLetThemIn.Utils.Editor
                 AssetDatabase.CreateAsset(defense, "Assets/_Project/ScriptableObjects/DefenseData/Tripwire.asset");
             }
 
-            WaveConfig wave = AssetDatabase.LoadAssetAtPath<WaveConfig>("Assets/_Project/ScriptableObjects/WaveConfigs/Wave_01.asset");
-            if (wave == null)
-            {
-                wave = ScriptableObject.CreateInstance<WaveConfig>();
-                wave.WaveName = "Wave 1";
-                wave.Spawns = new List<WaveSpawnDirective>
+            EnsureWaveAsset(
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_01.asset",
+                "Wave 1",
+                0.25f,
+                1.1f,
+                new List<WaveSpawnDirective>
                 {
                     new()
                     {
                         Alien = grey,
-                        Count = 6,
-                        SpawnDelay = 0.75f,
+                        Count = 5,
+                        SpawnDelay = 0.8f,
+                        EntryPointSelection = EntryPointSelection.Fixed,
                         EntryPointIndex = 0
                     }
-                };
+                });
 
-                AssetDatabase.CreateAsset(wave, "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_01.asset");
-            }
+            EnsureWaveAsset(
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_02.asset",
+                "Wave 2",
+                0.35f,
+                1.2f,
+                new List<WaveSpawnDirective>
+                {
+                    new()
+                    {
+                        Alien = grey,
+                        Count = 4,
+                        SpawnDelay = 0.55f,
+                        EntryPointSelection = EntryPointSelection.RoundRobin
+                    },
+                    new()
+                    {
+                        Alien = stalker,
+                        Count = 3,
+                        SpawnDelay = 0.65f,
+                        EntryPointSelection = EntryPointSelection.RoundRobin
+                    }
+                });
+
+            EnsureWaveAsset(
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_03.asset",
+                "Wave 3",
+                0.45f,
+                0.5f,
+                new List<WaveSpawnDirective>
+                {
+                    new()
+                    {
+                        Alien = stalker,
+                        Count = 4,
+                        SpawnDelay = 0.55f,
+                        EntryPointSelection = EntryPointSelection.Random
+                    },
+                    new()
+                    {
+                        Alien = techUnit,
+                        Count = 2,
+                        SpawnDelay = 0.9f,
+                        EntryPointSelection = EntryPointSelection.Fixed,
+                        EntryPointIndex = 2
+                    }
+                });
         }
 
         private static void EnsureScenes()
@@ -173,6 +232,27 @@ namespace DontLetThemIn.Utils.Editor
 
                 current = next;
             }
+        }
+
+        private static void EnsureWaveAsset(
+            string assetPath,
+            string waveName,
+            float preWaveDelay,
+            float postWaveDelay,
+            List<WaveSpawnDirective> spawns)
+        {
+            WaveConfig wave = AssetDatabase.LoadAssetAtPath<WaveConfig>(assetPath);
+            if (wave != null)
+            {
+                return;
+            }
+
+            wave = ScriptableObject.CreateInstance<WaveConfig>();
+            wave.WaveName = waveName;
+            wave.PreWaveDelay = preWaveDelay;
+            wave.PostWaveDelay = postWaveDelay;
+            wave.Spawns = spawns;
+            AssetDatabase.CreateAsset(wave, assetPath);
         }
     }
 }

@@ -9,6 +9,8 @@ namespace DontLetThemIn.Waves
     public sealed class WaveConfig : ScriptableObject
     {
         public string WaveName = "Wave 1";
+        public float PreWaveDelay = 0.25f;
+        public float PostWaveDelay = 1f;
         public List<WaveSpawnDirective> Spawns = new();
     }
 
@@ -18,6 +20,14 @@ namespace DontLetThemIn.Waves
         public AlienData Alien;
         public int Count = 3;
         public float SpawnDelay = 1f;
+        public EntryPointSelection EntryPointSelection = EntryPointSelection.Fixed;
         public int EntryPointIndex;
+    }
+
+    public enum EntryPointSelection
+    {
+        Fixed,
+        RoundRobin,
+        Random
     }
 }

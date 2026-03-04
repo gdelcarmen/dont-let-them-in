@@ -1,0 +1,45 @@
+{
+  "generated_at": "2026-03-04T10:20:00Z",
+  "pipeline_stage": "stage2_alien_spawning_wave_system",
+  "status": "partial",
+  "baseline_commit": "ad21795d30d713c626cfa77f64a511122a119eb0",
+  "deferred_reason": "Unity editor/runtime execution is unavailable in this environment.",
+  "checks": [
+    {
+      "id": "mixed_alien_wave_runtime_validation",
+      "status": "deferred",
+      "reason": "Play mode not executed in Unity editor here.",
+      "next_action": "Run GameScene and verify Grey/Stalker/TechUnit spawn across waves with expected cadence."
+    },
+    {
+      "id": "entry_selection_behavior_runtime",
+      "status": "deferred",
+      "reason": "In-editor visual confirmation pending.",
+      "next_action": "Validate Fixed, RoundRobin, and Random spawn entry behavior with gizmo/path debug enabled."
+    },
+    {
+      "id": "wave_transition_timing",
+      "status": "deferred",
+      "reason": "Per-wave delays are code-configured but not visually timed in Unity.",
+      "next_action": "Confirm PreWaveDelay/PostWaveDelay are applied as expected between spawn sets."
+    },
+    {
+      "id": "stage2_so_asset_generation_validation",
+      "status": "deferred",
+      "reason": "Editor-driven generation requires Unity session.",
+      "next_action": "Verify Stalker/TechUnit and Wave_02/Wave_03 assets are generated and serialized correctly."
+    },
+    {
+      "id": "stage2_ci_real_unity_execution",
+      "status": "deferred",
+      "reason": "Current workflows can pass via license-gated skip path when Unity secrets are absent.",
+      "next_action": "Run CI with Unity license secrets configured and verify non-skip execution path."
+    },
+    {
+      "id": "stage2_balance_sanity_check",
+      "status": "deferred",
+      "reason": "Placeholder stats added without live balance pass.",
+      "next_action": "Perform quick balance pass on wave pacing, scrap gain, and integrity pressure."
+    }
+  ]
+}

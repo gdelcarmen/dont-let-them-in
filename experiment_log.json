@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-03-04T10:12:55Z",
-  "pipeline_stage": "stage1_floor_layout_path_system",
-  "action": "add_stage1_verification_runbook_and_evidence_template",
+  "timestamp": "2026-03-04T10:21:14Z",
+  "pipeline_stage": "stage2_alien_spawning_wave_system",
+  "action": "implement_multi_alien_wave_scaffold_and_tests",
   "tool_used": "unity_lts",
   "outcome": "partial",
   "retry_count": 0,
   "human_intervention_required": true,
-  "intervention_reason": "Unity runtime/editor execution is still required to complete deferred gameplay and iOS archive checks.",
-  "notes": "Added docs/stage1_verification_runbook.md (execution sequence for deferred checks) and docs/stage1_verification_evidence.template.json (structured evidence capture). Updated README and docs/stage1_initialization_status.md to reference these artifacts. This improves operational handoff while keeping Stage 1 marked partial until Unity-dependent checks are executed and recorded."
+  "intervention_reason": "Unity editor/runtime and licensed CI execution are still required to validate Stage 2 behavior end-to-end.",
+  "notes": "Implemented Stage 2 scaffolding in code: AlienFactory-based subtype spawning, Stalker/TechUnit/Overlord placeholder alien classes, WaveConfig support for pre/post wave delays and entry selection modes (Fixed/RoundRobin/Random), WaveSpawner event and flow upgrades, runtime mixed-wave data expansion, and editor asset generation updates for additional alien and wave ScriptableObjects. Expanded PlayMode tests to cover subtype spawning and round-robin entry behavior. Added stage2 status and deferred verification logs in docs/stage2_wave_system_status.md and docs/stage2_wave_system_deferred_log.json."
 }

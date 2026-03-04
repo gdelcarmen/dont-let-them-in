@@ -14,10 +14,12 @@ namespace DontLetThemIn.Core
 {
     public sealed class GameManager : MonoBehaviour
     {
-        [Header("Stage 1 Data")]
+        [Header("Run Data")]
         [SerializeField] private FloorLayout floorLayout;
         [SerializeField] private DefenseData defaultDefense;
         [SerializeField] private AlienData greyAlien;
+        [SerializeField] private AlienData stalkerAlien;
+        [SerializeField] private AlienData techUnitAlien;
         [SerializeField] private WaveConfig[] waveConfigs;
 
         [Header("Run Settings")]
@@ -75,9 +77,22 @@ namespace DontLetThemIn.Core
                 greyAlien = Stage1DataFactory.CreateGreyAlien();
             }
 
+            if (stalkerAlien == null)
+            {
+                stalkerAlien = Stage1DataFactory.CreateStalkerAlien();
+            }
+
+            if (techUnitAlien == null)
+            {
+                techUnitAlien = Stage1DataFactory.CreateTechUnitAlien();
+            }
+
             if (waveConfigs == null || waveConfigs.Length == 0)
             {
-                waveConfigs = Stage1DataFactory.CreateWaveSet(greyAlien);
+                waveConfigs = Stage1DataFactory.CreateWaveSet(
+                    greyAlien,
+                    stalkerAlien,
+                    techUnitAlien);
             }
         }
 

@@ -75,23 +75,106 @@ namespace DontLetThemIn.Core
             return data;
         }
 
-        public static WaveConfig[] CreateWaveSet(AlienData alienData)
+        public static AlienData CreateStalkerAlien()
         {
+            AlienData data = ScriptableObject.CreateInstance<AlienData>();
+            data.name = "Stalker_Runtime";
+            data.AlienName = "Stalker";
+            data.AlienType = AlienType.Stalker;
+            data.MaxHealth = 34f;
+            data.Speed = 2.6f;
+            data.ScrapReward = 20;
+            data.HasSpecialAbility = true;
+            return data;
+        }
+
+        public static AlienData CreateTechUnitAlien()
+        {
+            AlienData data = ScriptableObject.CreateInstance<AlienData>();
+            data.name = "TechUnit_Runtime";
+            data.AlienName = "Tech Unit";
+            data.AlienType = AlienType.TechUnit;
+            data.MaxHealth = 45f;
+            data.Speed = 1.65f;
+            data.ScrapReward = 28;
+            data.HasSpecialAbility = true;
+            return data;
+        }
+
+        public static WaveConfig[] CreateWaveSet(
+            AlienData greyAlien,
+            AlienData stalkerAlien,
+            AlienData techUnitAlien)
+        {
+            AlienData grey = greyAlien != null ? greyAlien : CreateGreyAlien();
+            AlienData stalker = stalkerAlien != null ? stalkerAlien : grey;
+            AlienData techUnit = techUnitAlien != null ? techUnitAlien : stalker;
+
             WaveConfig wave1 = ScriptableObject.CreateInstance<WaveConfig>();
             wave1.name = "Wave1_Runtime";
             wave1.WaveName = "Wave 1";
+            wave1.PreWaveDelay = 0.25f;
+            wave1.PostWaveDelay = 1.1f;
             wave1.Spawns = new List<WaveSpawnDirective>
             {
                 new()
                 {
-                    Alien = alienData,
-                    Count = 6,
-                    SpawnDelay = 0.75f,
+                    Alien = grey,
+                    Count = 5,
+                    SpawnDelay = 0.8f,
+                    EntryPointSelection = EntryPointSelection.Fixed,
                     EntryPointIndex = 0
                 }
             };
 
-            return new[] { wave1 };
+            WaveConfig wave2 = ScriptableObject.CreateInstance<WaveConfig>();
+            wave2.name = "Wave2_Runtime";
+            wave2.WaveName = "Wave 2";
+            wave2.PreWaveDelay = 0.35f;
+            wave2.PostWaveDelay = 1.2f;
+            wave2.Spawns = new List<WaveSpawnDirective>
+            {
+                new()
+                {
+                    Alien = grey,
+                    Count = 4,
+                    SpawnDelay = 0.55f,
+                    EntryPointSelection = EntryPointSelection.RoundRobin
+                },
+                new()
+                {
+                    Alien = stalker,
+                    Count = 3,
+                    SpawnDelay = 0.65f,
+                    EntryPointSelection = EntryPointSelection.RoundRobin
+                }
+            };
+
+            WaveConfig wave3 = ScriptableObject.CreateInstance<WaveConfig>();
+            wave3.name = "Wave3_Runtime";
+            wave3.WaveName = "Wave 3";
+            wave3.PreWaveDelay = 0.45f;
+            wave3.PostWaveDelay = 0.5f;
+            wave3.Spawns = new List<WaveSpawnDirective>
+            {
+                new()
+                {
+                    Alien = stalker,
+                    Count = 4,
+                    SpawnDelay = 0.55f,
+                    EntryPointSelection = EntryPointSelection.Random
+                },
+                new()
+                {
+                    Alien = techUnit,
+                    Count = 2,
+                    SpawnDelay = 0.9f,
+                    EntryPointSelection = EntryPointSelection.Fixed,
+                    EntryPointIndex = 2
+                }
+            };
+
+            return new[] { wave1, wave2, wave3 };
         }
     }
 }
