@@ -1,0 +1,99 @@
+{
+  "generated_at": "2026-03-04T04:16:30Z",
+  "pipeline_stage": "stage1_floor_layout_path_system",
+  "status": "partial",
+  "repo": "https://github.com/gdelcarmen/dont-let-them-in",
+  "baseline_commit": "1b80155ffbbc0fcd457d34884f6fafb63c97b501",
+  "deferred_reason": "Unity Editor and full licensed Unity execution are not validated in this environment.",
+  "checks": [
+    {
+      "id": "unity_import_compile",
+      "status": "deferred",
+      "reason": "Unity Editor unavailable locally.",
+      "next_action": "Open project in Unity 2022.3.62f1 and verify no compile/import errors."
+    },
+    {
+      "id": "editor_auto_setup_execution",
+      "status": "deferred",
+      "reason": "Unity runtime/editor lifecycle not executed locally.",
+      "next_action": "Confirm Stage1ProjectSetupEditor auto-runs and generates required assets/scenes."
+    },
+    {
+      "id": "scriptableobject_asset_generation",
+      "status": "deferred",
+      "reason": "Generated assets require Unity editor run.",
+      "next_action": "Verify GroundFloor, Grey, Tripwire, and Wave_01 assets exist with expected values."
+    },
+    {
+      "id": "scene_generation_build_settings",
+      "status": "deferred",
+      "reason": "Scene generation is editor-driven.",
+      "next_action": "Verify MainMenu/GameScene/MetaUpgrades scenes and Build Settings order."
+    },
+    {
+      "id": "ios_il2cpp_player_settings",
+      "status": "deferred",
+      "reason": "Player settings require Unity editor inspection.",
+      "next_action": "Verify iOS scripting backend is IL2CPP and architecture is correctly set."
+    },
+    {
+      "id": "runtime_visual_validation",
+      "status": "deferred",
+      "reason": "Play mode not executed in Unity.",
+      "next_action": "Validate top-down camera, node rendering colors, and debug overlays in GameScene."
+    },
+    {
+      "id": "runtime_gameplay_loop_validation",
+      "status": "deferred",
+      "reason": "Interactive gameplay flow not exercised in Unity.",
+      "next_action": "Validate placement, rerouting, alien damage/death, scrap updates, integrity, game over, victory, and restart."
+    },
+    {
+      "id": "unity_editmode_tests_local",
+      "status": "deferred",
+      "reason": "Unity Test Runner unavailable locally.",
+      "next_action": "Run EditMode tests in Unity Test Runner and record pass evidence."
+    },
+    {
+      "id": "unity_playmode_tests_local",
+      "status": "deferred",
+      "reason": "Unity Test Runner unavailable locally.",
+      "next_action": "Run PlayMode tests in Unity Test Runner and record pass evidence."
+    },
+    {
+      "id": "gameci_tests_full_execution",
+      "status": "deferred",
+      "reason": "Current CI policy allows skip path when Unity license secrets are absent.",
+      "next_action": "Set Unity secrets and confirm Unity Tests workflow executes real runner path."
+    },
+    {
+      "id": "gameci_build_full_execution",
+      "status": "deferred",
+      "reason": "Current CI policy allows skip path when Unity license secrets are absent.",
+      "next_action": "Set Unity secrets and confirm Unity Build Check executes real build path."
+    },
+    {
+      "id": "ios_xcode_archive_validation",
+      "status": "deferred",
+      "reason": "Xcode archive flow not executed in this environment.",
+      "next_action": "Export Xcode project, sign, archive, and confirm successful archive."
+    },
+    {
+      "id": "unity_meta_file_hygiene_after_generation",
+      "status": "deferred",
+      "reason": "Generated scenes/assets not created in this environment yet.",
+      "next_action": "Commit all generated .meta files after Unity generation to avoid broken references."
+    },
+    {
+      "id": "lfs_tracking_verification_with_real_assets",
+      "status": "deferred",
+      "reason": "No large binary production assets added yet.",
+      "next_action": "After adding assets, verify git-lfs pointer tracking via git lfs ls-files."
+    }
+  ],
+  "related_docs": [
+    "docs/stage1_unity_verification_checklist.md",
+    "docs/stage1_initialization_status.md",
+    "experiment_log.json"
+  ]
+}

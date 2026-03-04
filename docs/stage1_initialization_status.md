@@ -30,6 +30,7 @@ This matrix maps the requested initialization checklist to the repository state,
 Unity-dependent checks are intentionally deferred until Unity Editor and/or licensed GameCI execution is available. Full checklist:
 
 - `docs/stage1_unity_verification_checklist.md`
+- `docs/stage1_deferred_verification_log.json` (machine-readable status log)
 
 ## Exit Condition for Stage 1 = Fully Verified
 

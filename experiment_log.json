@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-03-04T04:12:46Z",
+  "timestamp": "2026-03-04T04:14:56Z",
   "pipeline_stage": "stage1_floor_layout_path_system",
-  "action": "publish_stage1_completion_matrix_and_deferred_checks",
+  "action": "add_structured_deferred_verification_log",
   "tool_used": "unity_lts",
   "outcome": "partial",
   "retry_count": 0,
   "human_intervention_required": true,
-  "intervention_reason": "Unity Editor and licensed Unity execution are still required to complete runtime gameplay verification and iOS archive validation.",
-  "notes": "Added docs/stage1_initialization_status.md as a point-by-point matrix against the 10 requested initialization items, with explicit done/deferred states and CI evidence links. Deferred Unity tasks remain tracked in docs/stage1_unity_verification_checklist.md. Current repository synchronization: main and codex/sweep-2026-03-04 aligned, v0.0.1 release present, latest main workflows successful under current license-gated CI policy."
+  "intervention_reason": "Unity editor/runtime and fully licensed Unity execution are still needed to close all Stage 1 runtime/build checks.",
+  "notes": "Added docs/stage1_deferred_verification_log.json as machine-readable deferred status with per-check id, reason, and next action. Linked it from README and docs/stage1_initialization_status.md. Repository remains synced to main and codex/sweep-2026-03-04; release v0.0.1 remains published; latest main CI (Unity Build Check, Unity Tests, CSharp Lint) is green under the current workflow policy."
 }
