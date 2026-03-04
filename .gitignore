@@ -57,3 +57,4 @@ Desktop.ini
 coverage/
 TestResults/
 artifacts/
+.lint/
