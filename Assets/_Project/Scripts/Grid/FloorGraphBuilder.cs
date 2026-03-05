@@ -43,6 +43,14 @@ namespace DontLetThemIn.Grid
                 safeRoom.IsSafeRoom = true;
             }
 
+            foreach (Vector2Int weakPoint in layout.StructuralWeakPoints)
+            {
+                if (graph.TryGetNode(weakPoint, out GridNode node))
+                {
+                    node.SetStructuralWeakPoint(true);
+                }
+            }
+
             return graph;
         }
     }

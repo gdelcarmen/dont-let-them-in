@@ -5,6 +5,7 @@ using DontLetThemIn.Aliens;
 using DontLetThemIn.Defenses;
 using DontLetThemIn.Economy;
 using DontLetThemIn.Grid;
+using DontLetThemIn.Hazards;
 using DontLetThemIn.UI;
 using DontLetThemIn.Utils;
 using DontLetThemIn.Waves;
@@ -22,6 +23,7 @@ namespace DontLetThemIn.Core
         [SerializeField] private AlienData greyAlien;
         [SerializeField] private AlienData stalkerAlien;
         [SerializeField] private AlienData techUnitAlien;
+        [SerializeField] private AlienData overlordAlien;
         [SerializeField] private WaveConfig[] waveConfigs;
 
         [Header("Run Settings")]
@@ -32,6 +34,7 @@ namespace DontLetThemIn.Core
         private ScrapManager _scrapManager;
         private WaveSpawner _waveSpawner;
         private DefensePlacementController _defensePlacement;
+        private HazardSystem _hazardSystem;
         private HUDController _hud;
         private GridDebugDrawer _debugDrawer;
 
@@ -79,9 +82,9 @@ namespace DontLetThemIn.Core
                 defaultDefense = Stage1DataFactory.CreateDefaultDefense();
             }
 
-            if (availableDefenses == null || availableDefenses.Length == 0)
+            if (availableDefenses == null || availableDefenses.Length < 5)
             {
-                availableDefenses = Stage1DataFactory.CreateStage3DefenseSet();
+                availableDefenses = Stage1DataFactory.CreateStage4DefenseSet();
             }
 
             if (defaultDefense == null && availableDefenses.Length > 0)
@@ -104,7 +107,12 @@ namespace DontLetThemIn.Core
                 techUnitAlien = Stage1DataFactory.CreateTechUnitAlien();
             }
 
-            if (waveConfigs == null || waveConfigs.Length == 0)
+            if (overlordAlien == null)
+            {
+                overlordAlien = Stage1DataFactory.CreateOverlordAlien();
+            }
+
+            if (waveConfigs == null || waveConfigs.Length < 5)
             {
                 waveConfigs = Stage1DataFactory.CreateWaveSet(
                     greyAlien,
@@ -138,6 +146,8 @@ namespace DontLetThemIn.Core
 
             _defensePlacement = FindOrCreateComponent<DefensePlacementController>("DefensePlacement");
             _defensePlacement.Initialize(camera, _graph, _scrapManager, availableDefenses, defenseRoot.transform);
+
+            _hazardSystem = FindOrCreateComponent<HazardSystem>("HazardSystem");
         }
 
         private void BuildSystems()
@@ -172,6 +182,14 @@ namespace DontLetThemIn.Core
             _waveSpawner.AlienReachedSafeRoom += OnAlienReachedSafeRoom;
             _waveSpawner.AllWavesCompleted += () => _hud.SetStatus("All waves cleared. Hold the line...");
             _hud.SetWave(0, _waveSpawner.TotalWaves);
+
+            _hazardSystem.Initialize(
+                _graph,
+                _scrapManager,
+                _waveSpawner,
+                _defensePlacement,
+                _hud,
+                overlordAlien);
         }
 
         private void StartRun()

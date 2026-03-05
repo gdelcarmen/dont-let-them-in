@@ -22,12 +22,27 @@ namespace DontLetThemIn.Defenses
         private Coroutine _pulseRoutine;
         private Coroutine _fadeRoutine;
         private Vector3 _defaultScale;
+        private float _health;
+        private float _disabledUntil;
+        private float _statusUntil;
+        private string _statusText;
+        private TextMesh _statusLabel;
 
         public DefenseData Data { get; private set; }
 
         public GridNode Node { get; private set; }
 
+        public event System.Action<DefenseInstance, GridNode> TrapTriggered;
+
+        public event System.Action<DefenseInstance> Destroyed;
+
         public bool IsConsumed => _isConsumed;
+
+        public bool IsDisabled => Time.unscaledTime < _disabledUntil;
+
+        public bool IsOperational => !_isConsumed && !IsDisabled;
+
+        public float CurrentHealth => _health;
 
         public void Initialize(DefenseData data, GridNode node, NodeGraph graph)
         {
@@ -35,6 +50,7 @@ namespace DontLetThemIn.Defenses
             Node = node;
             _graph = graph;
             _usesRemaining = Data != null ? Data.Uses : 0;
+            _health = Data != null ? Mathf.Max(1f, Data.MaxHealth) : 20f;
             _homePosition = transform.position;
             _defaultScale = transform.localScale;
 
@@ -51,11 +67,13 @@ namespace DontLetThemIn.Defenses
             {
                 RebuildPatrolRoute();
             }
+
+            EnsureStatusLabel();
         }
 
         public bool TryApplyDamage(AlienBase alien, GridNode alienNode)
         {
-            if (_isConsumed || alien == null || Data == null || Data.Category != DefenseCategory.A)
+            if (_isConsumed || IsDisabled || alien == null || Data == null || Data.Category != DefenseCategory.A)
             {
                 return false;
             }
@@ -79,8 +97,17 @@ namespace DontLetThemIn.Defenses
             }
 
             alien.TakeDamage(Data.Damage);
+            if (alien is StalkerAlien stalker && !stalker.IsVisible)
+            {
+                stalker.Reveal(1f);
+            }
+
             ActivatePulse();
             _nextAttackTime = Time.unscaledTime + Mathf.Max(0.01f, Data.AttackInterval);
+            if (Data.CausesCollateral)
+            {
+                TrapTriggered?.Invoke(this, Node);
+            }
 
             if (_usesRemaining > 0)
             {
@@ -96,7 +123,13 @@ namespace DontLetThemIn.Defenses
 
         public void Tick(IReadOnlyCollection<AlienBase> aliens)
         {
+            UpdateStatusLabel();
             if (_isConsumed || Data == null || aliens == null)
+            {
+                return;
+            }
+
+            if (IsDisabled)
             {
                 return;
             }
@@ -272,6 +305,49 @@ namespace DontLetThemIn.Defenses
             return nearest;
         }
 
+        public void DisableFor(float duration, string reason)
+        {
+            if (_isConsumed || duration <= 0f)
+            {
+                return;
+            }
+
+            _disabledUntil = Mathf.Max(_disabledUntil, Time.unscaledTime + duration);
+            ShowStatus(reason, duration);
+        }
+
+        public void ShowStatus(string status, float duration)
+        {
+            if (_isConsumed || string.IsNullOrEmpty(status) || duration <= 0f)
+            {
+                return;
+            }
+
+            _statusText = status;
+            _statusUntil = Mathf.Max(_statusUntil, Time.unscaledTime + duration);
+            UpdateStatusLabel();
+        }
+
+        public void ApplyDirectDamage(float damage)
+        {
+            if (_isConsumed)
+            {
+                return;
+            }
+
+            float finalDamage = Mathf.Max(0f, damage);
+            if (finalDamage <= 0f)
+            {
+                return;
+            }
+
+            _health -= finalDamage;
+            if (_health <= 0f)
+            {
+                Consume();
+            }
+        }
+
         private void RebuildPatrolRoute()
         {
             _patrolNodes.Clear();
@@ -355,6 +431,8 @@ namespace DontLetThemIn.Defenses
                 _graph.RemoveDefense(Node);
             }
 
+            Destroyed?.Invoke(this);
+
             if (_fadeRoutine == null)
             {
                 _fadeRoutine = StartCoroutine(FadeAndDestroyRoutine());
@@ -384,6 +462,46 @@ namespace DontLetThemIn.Defenses
             }
 
             Destroy(gameObject);
+        }
+
+        private void EnsureStatusLabel()
+        {
+            if (_statusLabel != null)
+            {
+                return;
+            }
+
+            GameObject labelObject = new("StatusLabel");
+            labelObject.transform.SetParent(transform, false);
+            labelObject.transform.localPosition = new Vector3(0f, 0.46f, 0f);
+            _statusLabel = labelObject.AddComponent<TextMesh>();
+            _statusLabel.anchor = TextAnchor.MiddleCenter;
+            _statusLabel.alignment = TextAlignment.Center;
+            _statusLabel.characterSize = 0.08f;
+            _statusLabel.fontSize = 40;
+            _statusLabel.color = new Color(1f, 0.9f, 0.35f, 1f);
+            _statusLabel.text = string.Empty;
+        }
+
+        private void UpdateStatusLabel()
+        {
+            if (_statusLabel == null)
+            {
+                return;
+            }
+
+            if (Time.unscaledTime <= _statusUntil)
+            {
+                _statusLabel.text = _statusText;
+                float pulse = Mathf.Lerp(0.5f, 1f, Mathf.PingPong(Time.unscaledTime * 3.5f, 1f));
+                Color baseColor = new Color(1f, 0.9f, 0.35f, 1f);
+                baseColor.a = pulse;
+                _statusLabel.color = baseColor;
+            }
+            else
+            {
+                _statusLabel.text = string.Empty;
+            }
         }
     }
 }

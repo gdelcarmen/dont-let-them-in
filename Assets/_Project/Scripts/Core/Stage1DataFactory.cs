@@ -40,8 +40,9 @@ namespace DontLetThemIn.Core
 
             layout.StructuralWeakPoints = new List<Vector2Int>
             {
-                new(3, 2),
-                new(7, 6)
+                new(1, 2),
+                new(12, 5),
+                new(6, 1)
             };
 
             return layout;
@@ -59,8 +60,14 @@ namespace DontLetThemIn.Core
                 CreatePaintCanPendulumDefense(),
                 CreateShotgunMountDefense(),
                 CreateDogDefense(),
-                CreateRoombaDefense()
+                CreateRoombaDefense(),
+                CreateCameraNetworkDefense()
             };
+        }
+
+        public static DefenseData[] CreateStage4DefenseSet()
+        {
+            return CreateStage3DefenseSet();
         }
 
         public static DefenseData CreatePaintCanPendulumDefense()
@@ -78,6 +85,10 @@ namespace DontLetThemIn.Core
             data.Description = "Single-use hallway trap that slams invading aliens.";
             data.BlocksPath = true;
             data.DisplayColor = new Color(0.96f, 0.52f, 0.2f, 1f);
+            data.MaxHealth = 30f;
+            data.CausesCollateral = true;
+            data.CollateralDuration = 3f;
+            data.CollateralDamage = 8f;
             return data;
         }
 
@@ -95,6 +106,7 @@ namespace DontLetThemIn.Core
             data.Description = "Persistent turret that blasts the nearest alien in range.";
             data.BlocksPath = false;
             data.DisplayColor = new Color(0.88f, 0.22f, 0.2f, 1f);
+            data.MaxHealth = 42f;
             return data;
         }
 
@@ -117,6 +129,7 @@ namespace DontLetThemIn.Core
             data.Description = "Lunges at nearby aliens, bites, and briefly stuns them.";
             data.BlocksPath = false;
             data.DisplayColor = new Color(0.45f, 0.3f, 0.18f, 1f);
+            data.MaxHealth = 48f;
             return data;
         }
 
@@ -136,6 +149,27 @@ namespace DontLetThemIn.Core
             data.Description = "Patrol bot that bumps aliens off-line and chips away at them.";
             data.BlocksPath = false;
             data.DisplayColor = new Color(0.2f, 0.8f, 0.75f, 1f);
+            data.MaxHealth = 40f;
+            data.RevealsInvisibleAliens = true;
+            return data;
+        }
+
+        public static DefenseData CreateCameraNetworkDefense()
+        {
+            DefenseData data = ScriptableObject.CreateInstance<DefenseData>();
+            data.name = "CameraNetwork_Runtime";
+            data.DefenseName = "Camera Network";
+            data.Category = DefenseCategory.D;
+            data.ScrapCost = 40;
+            data.Damage = 0f;
+            data.Range = 0;
+            data.Uses = -1;
+            data.AttackInterval = 0.5f;
+            data.Description = "Reveals cloaked intruders on monitored tiles.";
+            data.BlocksPath = false;
+            data.DisplayColor = new Color(0.22f, 0.68f, 0.92f, 1f);
+            data.MaxHealth = 30f;
+            data.RevealsInvisibleAliens = true;
             return data;
         }
 
@@ -149,6 +183,8 @@ namespace DontLetThemIn.Core
             data.Speed = 2f;
             data.ScrapReward = 15;
             data.HasSpecialAbility = false;
+            data.CanBreachWalls = false;
+            data.StartsInvisible = false;
             return data;
         }
 
@@ -162,6 +198,8 @@ namespace DontLetThemIn.Core
             data.Speed = 2.6f;
             data.ScrapReward = 20;
             data.HasSpecialAbility = true;
+            data.CanBreachWalls = false;
+            data.StartsInvisible = true;
             return data;
         }
 
@@ -175,6 +213,8 @@ namespace DontLetThemIn.Core
             data.Speed = 1.65f;
             data.ScrapReward = 28;
             data.HasSpecialAbility = true;
+            data.CanBreachWalls = true;
+            data.StartsInvisible = false;
             return data;
         }
 
@@ -188,6 +228,8 @@ namespace DontLetThemIn.Core
             data.Speed = 1.1f;
             data.ScrapReward = 80;
             data.HasSpecialAbility = true;
+            data.CanBreachWalls = true;
+            data.StartsInvisible = false;
             return data;
         }
 
@@ -264,7 +306,61 @@ namespace DontLetThemIn.Core
                 }
             };
 
-            return new[] { wave1, wave2, wave3 };
+            WaveConfig wave4 = ScriptableObject.CreateInstance<WaveConfig>();
+            wave4.name = "Wave4_Runtime";
+            wave4.WaveName = "Wave 4";
+            wave4.PreWaveDelay = 0.5f;
+            wave4.PostWaveDelay = 0.4f;
+            wave4.Spawns = new List<WaveSpawnDirective>
+            {
+                new()
+                {
+                    Alien = grey,
+                    Count = 5,
+                    SpawnDelay = 0.45f,
+                    EntryPointSelection = EntryPointSelection.RoundRobin
+                },
+                new()
+                {
+                    Alien = stalker,
+                    Count = 4,
+                    SpawnDelay = 0.55f,
+                    EntryPointSelection = EntryPointSelection.Random
+                },
+                new()
+                {
+                    Alien = techUnit,
+                    Count = 2,
+                    SpawnDelay = 0.7f,
+                    EntryPointSelection = EntryPointSelection.Fixed,
+                    EntryPointIndex = 1
+                }
+            };
+
+            WaveConfig wave5 = ScriptableObject.CreateInstance<WaveConfig>();
+            wave5.name = "Wave5_Runtime";
+            wave5.WaveName = "Wave 5";
+            wave5.PreWaveDelay = 0.6f;
+            wave5.PostWaveDelay = 0.4f;
+            wave5.Spawns = new List<WaveSpawnDirective>
+            {
+                new()
+                {
+                    Alien = stalker,
+                    Count = 5,
+                    SpawnDelay = 0.42f,
+                    EntryPointSelection = EntryPointSelection.RoundRobin
+                },
+                new()
+                {
+                    Alien = techUnit,
+                    Count = 3,
+                    SpawnDelay = 0.62f,
+                    EntryPointSelection = EntryPointSelection.Random
+                }
+            };
+
+            return new[] { wave1, wave2, wave3, wave4, wave5 };
         }
     }
 }

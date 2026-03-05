@@ -11,5 +11,7 @@ namespace DontLetThemIn.Aliens
         public float Speed = 2f;
         public int ScrapReward = 12;
         public bool HasSpecialAbility;
+        public bool CanBreachWalls;
+        public bool StartsInvisible;
     }
 }

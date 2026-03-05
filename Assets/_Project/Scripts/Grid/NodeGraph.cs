@@ -50,6 +50,13 @@ namespace DontLetThemIn.Grid
             return _nodes.Values.FirstOrDefault(node => node.IsSafeRoom);
         }
 
+        public IReadOnlyList<GridNode> GetWeakPoints(bool includeBarricaded = true)
+        {
+            return _nodes.Values
+                .Where(node => node.IsStructuralWeakPoint && (includeBarricaded || !node.IsWeakPointBarricaded))
+                .ToList();
+        }
+
         public IReadOnlyList<GridNode> GetNeighbors(GridNode node)
         {
             Vector2Int[] directions =
@@ -107,6 +114,33 @@ namespace DontLetThemIn.Grid
             node.SetDefense(null);
             node.SetState(NodeState.Open);
             NodeChanged?.Invoke(node);
+        }
+
+        public bool BarricadeWeakPoint(GridNode node)
+        {
+            if (node == null || !node.IsStructuralWeakPoint || node.IsWeakPointBarricaded || node.IsWeakPointBreached)
+            {
+                return false;
+            }
+
+            node.SetWeakPointBarricaded(true);
+            node.SetState(NodeState.Blocked);
+            NodeChanged?.Invoke(node);
+            return true;
+        }
+
+        public bool BreachWeakPoint(GridNode node)
+        {
+            if (node == null || !node.CanBeBreached)
+            {
+                return false;
+            }
+
+            node.MarkWeakPointBreached();
+            node.IsEntryPoint = true;
+            node.SetState(NodeState.Open);
+            NodeChanged?.Invoke(node);
+            return true;
         }
     }
 }

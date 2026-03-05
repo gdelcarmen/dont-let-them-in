@@ -16,6 +16,8 @@ namespace DontLetThemIn.Aliens
         private int _nextPathIndex;
         private bool _repathRequested;
         private float _stunUntil;
+        private bool _externalControl;
+        private float _speedMultiplier = 1f;
 
         public event Action<AlienBase> Died;
         public event Action<AlienBase> ReachedSafeRoom;
@@ -28,6 +30,12 @@ namespace DontLetThemIn.Aliens
         public IReadOnlyList<GridNode> CurrentPath => _path;
 
         public float CurrentHealth => _health;
+
+        public float MaxHealth => Data != null ? Data.MaxHealth : 1f;
+
+        public float CurrentSpeedMultiplier => _speedMultiplier;
+
+        public NodeGraph Graph => _graph;
 
         public bool IsAlive { get; private set; }
 
@@ -67,6 +75,11 @@ namespace DontLetThemIn.Aliens
             }
 
             if (IsQueued)
+            {
+                return;
+            }
+
+            if (_externalControl)
             {
                 return;
             }
@@ -155,6 +168,46 @@ namespace DontLetThemIn.Aliens
             RecalculatePath();
         }
 
+        public void SetSpeedMultiplier(float multiplier)
+        {
+            _speedMultiplier = Mathf.Max(0.1f, multiplier);
+        }
+
+        public void SetExternalControl(bool enabled)
+        {
+            _externalControl = enabled;
+            if (!enabled)
+            {
+                _repathRequested = true;
+            }
+        }
+
+        public bool MoveWithExternalControl(Vector3 worldTarget, float speedScale = 1f)
+        {
+            if (!IsAlive)
+            {
+                return false;
+            }
+
+            SetExternalControl(true);
+            float speed = (Data != null ? Data.Speed : 2f) * _speedMultiplier * Mathf.Max(0.1f, speedScale);
+            float deltaTime = Time.deltaTime > 0f ? Time.deltaTime : Time.unscaledDeltaTime;
+            transform.position = Vector3.MoveTowards(transform.position, worldTarget, speed * deltaTime);
+
+            GridNode nearestNode = FindNearestWalkableNode(transform.position);
+            if (nearestNode != null)
+            {
+                CurrentNode = nearestNode;
+            }
+
+            return Vector3.Distance(transform.position, worldTarget) <= 0.05f;
+        }
+
+        public void ForceRepath()
+        {
+            _repathRequested = true;
+        }
+
         private void FollowPath()
         {
             if (_path.Count == 0 || _nextPathIndex >= _path.Count)
@@ -164,7 +217,7 @@ namespace DontLetThemIn.Aliens
             }
 
             GridNode targetNode = _path[_nextPathIndex];
-            float speed = Data != null ? Data.Speed : 2f;
+            float speed = (Data != null ? Data.Speed : 2f) * _speedMultiplier;
             float deltaTime = Time.deltaTime > 0f ? Time.deltaTime : Time.unscaledDeltaTime;
             transform.position = Vector3.MoveTowards(transform.position, targetNode.WorldPosition, speed * deltaTime);
 
@@ -276,6 +329,33 @@ namespace DontLetThemIn.Aliens
             }
 
             Destroy(gameObject);
+        }
+
+        private GridNode FindNearestWalkableNode(Vector3 position)
+        {
+            if (_graph == null)
+            {
+                return CurrentNode;
+            }
+
+            GridNode nearest = null;
+            float bestDistance = float.MaxValue;
+            foreach (GridNode node in _graph.Nodes)
+            {
+                if (node == null || !node.IsWalkableForAliens)
+                {
+                    continue;
+                }
+
+                float distance = Vector3.Distance(node.WorldPosition, position);
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    nearest = node;
+                }
+            }
+
+            return nearest;
         }
     }
 }

@@ -25,6 +25,14 @@ namespace DontLetThemIn.Grid
 
         public bool IsSafeRoom { get; set; }
 
+        public bool IsStructuralWeakPoint { get; private set; }
+
+        public bool IsWeakPointBarricaded { get; private set; }
+
+        public bool IsWeakPointBreached { get; private set; }
+
+        public bool CanBeBreached => IsStructuralWeakPoint && !IsWeakPointBarricaded && !IsWeakPointBreached;
+
         public DefenseInstance Defense { get; private set; }
 
         public bool HasDefense => Defense != null;
@@ -51,6 +59,40 @@ namespace DontLetThemIn.Grid
         public void SetDefense(DefenseInstance defense)
         {
             Defense = defense;
+        }
+
+        public void SetStructuralWeakPoint(bool value)
+        {
+            IsStructuralWeakPoint = value;
+            if (!value)
+            {
+                IsWeakPointBarricaded = false;
+                IsWeakPointBreached = false;
+            }
+        }
+
+        public void SetWeakPointBarricaded(bool value)
+        {
+            if (!IsStructuralWeakPoint)
+            {
+                return;
+            }
+
+            IsWeakPointBarricaded = value;
+            if (value)
+            {
+                IsWeakPointBreached = false;
+            }
+        }
+
+        public void MarkWeakPointBreached()
+        {
+            if (!IsStructuralWeakPoint || IsWeakPointBarricaded)
+            {
+                return;
+            }
+
+            IsWeakPointBreached = true;
         }
     }
 }

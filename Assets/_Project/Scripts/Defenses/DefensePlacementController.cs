@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using DontLetThemIn.Aliens;
 using DontLetThemIn.Economy;
 using DontLetThemIn.Grid;
+using DontLetThemIn.Hazards;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -23,16 +24,21 @@ namespace DontLetThemIn.Defenses
         private NodeGraph _graph;
         private ScrapManager _scrapManager;
         private Transform _defenseRoot;
+        private HazardSystem _hazardSystem;
         private SpriteRenderer _placementIndicator;
         private Text _feedbackText;
+        private Button _barricadeButton;
         private int _selectedDefenseIndex;
         private float _feedbackUntil;
+        private bool _barricadeMode;
 
         public IReadOnlyList<DefenseInstance> Defenses => _defenses;
         public DefenseData SelectedDefense =>
             _selectedDefenseIndex >= 0 && _selectedDefenseIndex < _availableDefenses.Count
                 ? _availableDefenses[_selectedDefenseIndex]
                 : null;
+
+        public event System.Action<DefenseInstance> DefensePlaced;
 
         public void Initialize(
             Camera camera,
@@ -71,6 +77,11 @@ namespace DontLetThemIn.Defenses
             _selectedDefenseIndex = Mathf.Clamp(_selectedDefenseIndex, 0, Mathf.Max(0, _availableDefenses.Count - 1));
             EnsurePlacementIndicator();
             BuildPaletteUI();
+        }
+
+        public void SetHazardSystem(HazardSystem hazardSystem)
+        {
+            _hazardSystem = hazardSystem;
         }
 
         private void Update()
@@ -143,6 +154,24 @@ namespace DontLetThemIn.Defenses
             }
 
             DefenseData selectedDefense = SelectedDefense;
+            if (_barricadeMode)
+            {
+                if (_hazardSystem == null)
+                {
+                    ShowFeedback("Hazard system unavailable", new Color(1f, 0.45f, 0.45f, 1f));
+                    return false;
+                }
+
+                if (_hazardSystem.TryBarricadeWeakPoint(node))
+                {
+                    ShowFeedback("Weak point barricaded", new Color(0.72f, 0.95f, 0.72f, 1f));
+                    return true;
+                }
+
+                ShowFeedback(_hazardSystem.LastActionMessage, new Color(1f, 0.85f, 0.4f, 1f));
+                return false;
+            }
+
             if (selectedDefense == null)
             {
                 return false;
@@ -196,6 +225,7 @@ namespace DontLetThemIn.Defenses
             }
 
             _defenses.Add(defense);
+            DefensePlaced?.Invoke(defense);
             ShowFeedback($"{selectedDefense.DefenseName} placed", new Color(0.72f, 0.95f, 0.72f, 1f));
             return true;
         }
@@ -228,7 +258,18 @@ namespace DontLetThemIn.Defenses
             }
 
             _selectedDefenseIndex = Mathf.Clamp(index, 0, _availableDefenses.Count - 1);
+            _barricadeMode = false;
             RefreshPaletteSelection();
+        }
+
+        public void ToggleBarricadeMode()
+        {
+            _barricadeMode = !_barricadeMode;
+            RefreshPaletteSelection();
+            if (_barricadeMode)
+            {
+                ShowFeedback("Barricade mode: select weak point (30 Scrap)", new Color(0.72f, 0.9f, 1f, 1f));
+            }
         }
 
         private bool TryGetNodeForScreenPosition(Vector2 inputPosition, out GridNode node)
@@ -317,7 +358,16 @@ namespace DontLetThemIn.Defenses
             }
 
             DefenseData selected = SelectedDefense;
-            bool valid = CanPlaceOnNode(node, selected) && !(selected != null && selected.MaxActivePerFloor == 1 && selected.Category == DefenseCategory.C && HasActivePet());
+            bool valid;
+            if (_barricadeMode)
+            {
+                valid = node.IsStructuralWeakPoint && !node.IsWeakPointBarricaded && !node.IsWeakPointBreached;
+            }
+            else
+            {
+                valid = CanPlaceOnNode(node, selected) && !(selected != null && selected.MaxActivePerFloor == 1 && selected.Category == DefenseCategory.C && HasActivePet());
+            }
+
             _placementIndicator.enabled = true;
             _placementIndicator.transform.position = node.WorldPosition + new Vector3(0f, 0f, -0.25f);
             _placementIndicator.color = valid
@@ -345,7 +395,14 @@ namespace DontLetThemIn.Defenses
             Transform existing = canvas.transform.Find("DefensePalette");
             if (existing != null)
             {
-                Destroy(existing.gameObject);
+                if (Application.isPlaying)
+                {
+                    Destroy(existing.gameObject);
+                }
+                else
+                {
+                    DestroyImmediate(existing.gameObject);
+                }
             }
 
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -356,20 +413,26 @@ namespace DontLetThemIn.Defenses
             panelRect.anchorMin = new Vector2(0.5f, 0f);
             panelRect.anchorMax = new Vector2(0.5f, 0f);
             panelRect.pivot = new Vector2(0.5f, 0f);
-            panelRect.sizeDelta = new Vector2(920f, 140f);
+            float spacing = 205f;
+            int totalButtons = _availableDefenses.Count + 1;
+            float width = Mathf.Max(920f, totalButtons * spacing + 120f);
+            panelRect.sizeDelta = new Vector2(width, 140f);
             panelRect.anchoredPosition = new Vector2(0f, 0f);
 
             Image panelImage = panel.AddComponent<Image>();
             panelImage.color = new Color(0.07f, 0.08f, 0.11f, 0.8f);
 
             _paletteButtons.Clear();
+            float startX = -((totalButtons - 1) * spacing) * 0.5f;
             for (int i = 0; i < _availableDefenses.Count; i++)
             {
                 DefenseData data = _availableDefenses[i];
-                float x = -420f + (i * 210f);
+                float x = startX + (i * spacing);
                 Button button = CreatePaletteButton(panel.transform, font, data, i, x);
                 _paletteButtons.Add(button);
             }
+
+            _barricadeButton = CreateBarricadeButton(panel.transform, font, startX + (_availableDefenses.Count * spacing));
 
             GameObject feedbackObj = new("PlacementFeedback");
             feedbackObj.transform.SetParent(panel.transform, false);
@@ -458,6 +521,52 @@ namespace DontLetThemIn.Defenses
                     ? new Color(0.28f, 0.37f, 0.5f, 0.96f)
                     : new Color(0.18f, 0.2f, 0.25f, 0.92f);
             }
+
+            if (_barricadeButton != null)
+            {
+                Image barricadeImage = _barricadeButton.GetComponent<Image>();
+                if (barricadeImage != null)
+                {
+                    barricadeImage.color = _barricadeMode
+                        ? new Color(0.26f, 0.46f, 0.64f, 0.96f)
+                        : new Color(0.18f, 0.2f, 0.25f, 0.92f);
+                }
+            }
+        }
+
+        private Button CreateBarricadeButton(Transform parent, Font font, float anchoredX)
+        {
+            GameObject buttonObject = new("BarricadeWeakPoint_Button");
+            buttonObject.transform.SetParent(parent, false);
+
+            RectTransform rect = buttonObject.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0f);
+            rect.anchorMax = new Vector2(0.5f, 0f);
+            rect.pivot = new Vector2(0.5f, 0f);
+            rect.anchoredPosition = new Vector2(anchoredX, 22f);
+            rect.sizeDelta = new Vector2(195f, 90f);
+
+            Image image = buttonObject.AddComponent<Image>();
+            image.color = new Color(0.18f, 0.2f, 0.25f, 0.92f);
+
+            Button button = buttonObject.AddComponent<Button>();
+            button.onClick.AddListener(ToggleBarricadeMode);
+
+            GameObject labelObject = new("Label");
+            labelObject.transform.SetParent(buttonObject.transform, false);
+            RectTransform labelRect = labelObject.AddComponent<RectTransform>();
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.offsetMin = new Vector2(8f, 8f);
+            labelRect.offsetMax = new Vector2(-8f, -8f);
+
+            Text label = labelObject.AddComponent<Text>();
+            label.font = font;
+            label.fontSize = 16;
+            label.alignment = TextAnchor.MiddleCenter;
+            label.color = Color.white;
+            label.text = "Barricade\\nWeak Point\\n30 Scrap";
+            return button;
         }
 
         private void ShowFeedback(string message, Color color)

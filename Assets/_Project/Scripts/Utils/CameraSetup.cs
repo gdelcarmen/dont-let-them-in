@@ -18,6 +18,9 @@ namespace DontLetThemIn.Utils
             camera.orthographic = true;
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.05f, 0.05f, 0.06f);
+            camera.allowHDR = false;
+            camera.allowMSAA = false;
+            camera.depthTextureMode = DepthTextureMode.None;
             camera.transform.position = new Vector3((graph.Width - 1) * 0.5f, (graph.Height - 1) * 0.5f, -10f);
             camera.transform.rotation = Quaternion.identity;
 

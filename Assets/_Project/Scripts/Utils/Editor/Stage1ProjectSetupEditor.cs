@@ -68,10 +68,22 @@ namespace DontLetThemIn.Utils.Editor
             EnsureFolder("Assets/_Project/ScriptableObjects/WaveConfigs");
 
             FloorLayout layout = AssetDatabase.LoadAssetAtPath<FloorLayout>("Assets/_Project/ScriptableObjects/FloorLayouts/GroundFloor.asset");
+            FloorLayout layoutTemplate = Stage1DataFactory.CreateGroundFloorLayout();
             if (layout == null)
             {
-                layout = Stage1DataFactory.CreateGroundFloorLayout();
+                layout = layoutTemplate;
                 AssetDatabase.CreateAsset(layout, "Assets/_Project/ScriptableObjects/FloorLayouts/GroundFloor.asset");
+            }
+            else
+            {
+                layout.GridWidth = layoutTemplate.GridWidth;
+                layout.GridHeight = layoutTemplate.GridHeight;
+                layout.SafeRoomPosition = layoutTemplate.SafeRoomPosition;
+                layout.Nodes = new List<FloorNodeDefinition>(layoutTemplate.Nodes);
+                layout.EntryPoints = new List<Vector2Int>(layoutTemplate.EntryPoints);
+                layout.StructuralWeakPoints = new List<Vector2Int>(layoutTemplate.StructuralWeakPoints);
+                EditorUtility.SetDirty(layout);
+                Object.DestroyImmediate(layoutTemplate);
             }
 
             EnsureAlienAsset("Assets/_Project/ScriptableObjects/AlienData/Grey.asset", Stage1DataFactory.CreateGreyAlien);
@@ -91,6 +103,9 @@ namespace DontLetThemIn.Utils.Editor
             EnsureDefenseAsset(
                 "Assets/_Project/ScriptableObjects/DefenseData/Roomba.asset",
                 Stage1DataFactory.CreateRoombaDefense);
+            EnsureDefenseAsset(
+                "Assets/_Project/ScriptableObjects/DefenseData/CameraNetwork.asset",
+                Stage1DataFactory.CreateCameraNetworkDefense);
 
             AlienData grey = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/Grey.asset");
             AlienData stalker = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/Stalker.asset");
@@ -159,6 +174,60 @@ namespace DontLetThemIn.Utils.Editor
                         EntryPointIndex = 2
                     }
                 });
+
+            EnsureWaveAsset(
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_04.asset",
+                "Wave 4",
+                0.5f,
+                0.4f,
+                new List<WaveSpawnDirective>
+                {
+                    new()
+                    {
+                        Alien = grey,
+                        Count = 5,
+                        SpawnDelay = 0.45f,
+                        EntryPointSelection = EntryPointSelection.RoundRobin
+                    },
+                    new()
+                    {
+                        Alien = stalker,
+                        Count = 4,
+                        SpawnDelay = 0.55f,
+                        EntryPointSelection = EntryPointSelection.Random
+                    },
+                    new()
+                    {
+                        Alien = techUnit,
+                        Count = 2,
+                        SpawnDelay = 0.7f,
+                        EntryPointSelection = EntryPointSelection.Fixed,
+                        EntryPointIndex = 1
+                    }
+                });
+
+            EnsureWaveAsset(
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_05.asset",
+                "Wave 5",
+                0.6f,
+                0.4f,
+                new List<WaveSpawnDirective>
+                {
+                    new()
+                    {
+                        Alien = stalker,
+                        Count = 5,
+                        SpawnDelay = 0.42f,
+                        EntryPointSelection = EntryPointSelection.RoundRobin
+                    },
+                    new()
+                    {
+                        Alien = techUnit,
+                        Count = 3,
+                        SpawnDelay = 0.62f,
+                        EntryPointSelection = EntryPointSelection.Random
+                    }
+                });
         }
 
         private static void EnsurePrefabs()
@@ -199,6 +268,9 @@ namespace DontLetThemIn.Utils.Editor
             EnsureDefensePrefab(
                 "Assets/_Project/Prefabs/Defenses/Roomba.prefab",
                 new Color(0.2f, 0.8f, 0.75f, 1f));
+            EnsureDefensePrefab(
+                "Assets/_Project/Prefabs/Defenses/CameraNetwork.prefab",
+                new Color(0.22f, 0.68f, 0.92f, 1f));
         }
 
         private static void EnsureScenes()
@@ -311,12 +383,14 @@ namespace DontLetThemIn.Utils.Editor
                 "Assets/_Project/ScriptableObjects/DefenseData/PaintCanPendulum.asset",
                 "Assets/_Project/ScriptableObjects/DefenseData/ShotgunMount.asset",
                 "Assets/_Project/ScriptableObjects/DefenseData/Dog.asset",
-                "Assets/_Project/ScriptableObjects/DefenseData/Roomba.asset"
+                "Assets/_Project/ScriptableObjects/DefenseData/Roomba.asset",
+                "Assets/_Project/ScriptableObjects/DefenseData/CameraNetwork.asset"
             };
             DefenseData defaultDefense = AssetDatabase.LoadAssetAtPath<DefenseData>(defensePaths[0]);
             AlienData grey = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/Grey.asset");
             AlienData stalker = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/Stalker.asset");
             AlienData techUnit = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/TechUnit.asset");
+            AlienData overlord = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/Overlord.asset");
 
             managerObject.FindProperty("floorLayout").objectReferenceValue = floorLayout;
             managerObject.FindProperty("defaultDefense").objectReferenceValue = defaultDefense;
@@ -330,12 +404,15 @@ namespace DontLetThemIn.Utils.Editor
             managerObject.FindProperty("greyAlien").objectReferenceValue = grey;
             managerObject.FindProperty("stalkerAlien").objectReferenceValue = stalker;
             managerObject.FindProperty("techUnitAlien").objectReferenceValue = techUnit;
+            managerObject.FindProperty("overlordAlien").objectReferenceValue = overlord;
 
             string[] wavePaths =
             {
                 "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_01.asset",
                 "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_02.asset",
-                "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_03.asset"
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_03.asset",
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_04.asset",
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_05.asset"
             };
 
             SerializedProperty waveArray = managerObject.FindProperty("waveConfigs");
@@ -379,25 +456,33 @@ namespace DontLetThemIn.Utils.Editor
         private static void EnsureAlienAsset(string assetPath, System.Func<AlienData> factory)
         {
             AlienData data = AssetDatabase.LoadAssetAtPath<AlienData>(assetPath);
-            if (data != null)
+            AlienData template = factory();
+            if (data == null)
             {
+                data = template;
+                AssetDatabase.CreateAsset(data, assetPath);
                 return;
             }
 
-            data = factory();
-            AssetDatabase.CreateAsset(data, assetPath);
+            CopyAlienData(template, data);
+            EditorUtility.SetDirty(data);
+            Object.DestroyImmediate(template);
         }
 
         private static void EnsureDefenseAsset(string assetPath, System.Func<DefenseData> factory)
         {
             DefenseData data = AssetDatabase.LoadAssetAtPath<DefenseData>(assetPath);
-            if (data != null)
+            DefenseData template = factory();
+            if (data == null)
             {
+                data = template;
+                AssetDatabase.CreateAsset(data, assetPath);
                 return;
             }
 
-            data = factory();
-            AssetDatabase.CreateAsset(data, assetPath);
+            CopyDefenseData(template, data);
+            EditorUtility.SetDirty(data);
+            Object.DestroyImmediate(template);
         }
 
         private static void EnsureAlienPrefab<T>(string prefabPath, Color color, Vector3 scale) where T : AlienBase
@@ -585,17 +670,54 @@ namespace DontLetThemIn.Utils.Editor
             List<WaveSpawnDirective> spawns)
         {
             WaveConfig wave = AssetDatabase.LoadAssetAtPath<WaveConfig>(assetPath);
-            if (wave != null)
+            if (wave == null)
             {
-                return;
+                wave = ScriptableObject.CreateInstance<WaveConfig>();
+                AssetDatabase.CreateAsset(wave, assetPath);
             }
 
-            wave = ScriptableObject.CreateInstance<WaveConfig>();
             wave.WaveName = waveName;
             wave.PreWaveDelay = preWaveDelay;
             wave.PostWaveDelay = postWaveDelay;
             wave.Spawns = spawns;
-            AssetDatabase.CreateAsset(wave, assetPath);
+            EditorUtility.SetDirty(wave);
+        }
+
+        private static void CopyAlienData(AlienData source, AlienData target)
+        {
+            target.AlienName = source.AlienName;
+            target.AlienType = source.AlienType;
+            target.MaxHealth = source.MaxHealth;
+            target.Speed = source.Speed;
+            target.ScrapReward = source.ScrapReward;
+            target.HasSpecialAbility = source.HasSpecialAbility;
+            target.CanBreachWalls = source.CanBreachWalls;
+            target.StartsInvisible = source.StartsInvisible;
+        }
+
+        private static void CopyDefenseData(DefenseData source, DefenseData target)
+        {
+            target.DefenseName = source.DefenseName;
+            target.Category = source.Category;
+            target.ScrapCost = source.ScrapCost;
+            target.Damage = source.Damage;
+            target.Range = source.Range;
+            target.Uses = source.Uses;
+            target.AttackInterval = source.AttackInterval;
+            target.MoveSpeed = source.MoveSpeed;
+            target.ContactRadius = source.ContactRadius;
+            target.EffectDuration = source.EffectDuration;
+            target.KnockbackNodes = source.KnockbackNodes;
+            target.MaxActivePerFloor = source.MaxActivePerFloor;
+            target.RequiresHallwayPlacement = source.RequiresHallwayPlacement;
+            target.DisplayColor = source.DisplayColor;
+            target.MaxHealth = source.MaxHealth;
+            target.CausesCollateral = source.CausesCollateral;
+            target.CollateralDuration = source.CollateralDuration;
+            target.CollateralDamage = source.CollateralDamage;
+            target.RevealsInvisibleAliens = source.RevealsInvisibleAliens;
+            target.Description = source.Description;
+            target.BlocksPath = source.BlocksPath;
         }
 
         private static void ConfigureIosIl2Cpp()

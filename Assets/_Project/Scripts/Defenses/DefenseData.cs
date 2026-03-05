@@ -19,6 +19,11 @@ namespace DontLetThemIn.Defenses
         public int MaxActivePerFloor = 0;
         public bool RequiresHallwayPlacement;
         public Color DisplayColor = Color.white;
+        public float MaxHealth = 40f;
+        public bool CausesCollateral;
+        public float CollateralDuration = 3f;
+        public float CollateralDamage = 8f;
+        public bool RevealsInvisibleAliens;
         [TextArea] public string Description = "Cheap improvised trap with attitude.";
         public bool BlocksPath = true;
     }

@@ -55,9 +55,19 @@ namespace DontLetThemIn.Grid
                 return new Color(0.38f, 0.85f, 0.45f);
             }
 
+            if (node.IsStructuralWeakPoint && node.IsWeakPointBarricaded)
+            {
+                return new Color(0.33f, 0.42f, 0.58f);
+            }
+
             if (node.IsEntryPoint)
             {
                 return new Color(0.64f, 0.82f, 1f);
+            }
+
+            if (node.IsStructuralWeakPoint && !node.IsWeakPointBreached)
+            {
+                return new Color(0.86f, 0.58f, 0.38f);
             }
 
             if (node.State == NodeState.Destroyed)
