@@ -15,10 +15,11 @@ namespace DontLetThemIn.Defenses
     public sealed class DefensePlacementController : MonoBehaviour
     {
         private const float FeedbackDuration = 1.4f;
+        private const int BarricadeScrapCost = 30;
 
         private readonly List<DefenseInstance> _defenses = new();
         private readonly List<DefenseData> _availableDefenses = new();
-        private readonly List<Button> _paletteButtons = new();
+        private readonly List<PaletteEntry> _paletteEntries = new();
 
         private Camera _camera;
         private NodeGraph _graph;
@@ -28,12 +29,15 @@ namespace DontLetThemIn.Defenses
         private SpriteRenderer _placementIndicator;
         private Text _feedbackText;
         private Button _barricadeButton;
+        private Text _barricadeLabel;
         private int _selectedDefenseIndex;
         private float _feedbackUntil;
         private bool _barricadeMode;
         private bool _placementEnabled = true;
+        private bool _trapResetEnabled;
 
         public IReadOnlyList<DefenseInstance> Defenses => _defenses;
+
         public DefenseData SelectedDefense =>
             _selectedDefenseIndex >= 0 && _selectedDefenseIndex < _availableDefenses.Count
                 ? _availableDefenses[_selectedDefenseIndex]
@@ -42,6 +46,14 @@ namespace DontLetThemIn.Defenses
         public event System.Action<DefenseInstance> DefensePlaced;
 
         public bool IsPlacementEnabled => _placementEnabled;
+
+        private void OnDestroy()
+        {
+            if (_scrapManager != null)
+            {
+                _scrapManager.ScrapChanged -= OnScrapChanged;
+            }
+        }
 
         public void Initialize(
             Camera camera,
@@ -60,6 +72,11 @@ namespace DontLetThemIn.Defenses
             IReadOnlyList<DefenseData> defenses,
             Transform defenseRoot)
         {
+            if (_scrapManager != null)
+            {
+                _scrapManager.ScrapChanged -= OnScrapChanged;
+            }
+
             for (int i = _defenses.Count - 1; i >= 0; i--)
             {
                 DefenseInstance defense = _defenses[i];
@@ -100,7 +117,14 @@ namespace DontLetThemIn.Defenses
 
             _selectedDefenseIndex = Mathf.Clamp(_selectedDefenseIndex, 0, Mathf.Max(0, _availableDefenses.Count - 1));
             EnsurePlacementIndicator();
+
+            if (_scrapManager != null)
+            {
+                _scrapManager.ScrapChanged += OnScrapChanged;
+            }
+
             BuildPaletteUI();
+            RefreshPaletteVisuals();
         }
 
         public void SetHazardSystem(HazardSystem hazardSystem)
@@ -114,6 +138,18 @@ namespace DontLetThemIn.Defenses
             if (!enabled && _placementIndicator != null)
             {
                 _placementIndicator.enabled = false;
+            }
+        }
+
+        public void SetTrapResetEnabled(bool enabled)
+        {
+            _trapResetEnabled = enabled;
+            foreach (DefenseInstance defense in _defenses)
+            {
+                if (defense != null)
+                {
+                    defense.SetTrapResetEnabled(enabled);
+                }
             }
         }
 
@@ -262,6 +298,7 @@ namespace DontLetThemIn.Defenses
 
             DefenseInstance defense = defenseObject.AddComponent<DefenseInstance>();
             defense.Initialize(selectedDefense, node, _graph);
+            defense.SetTrapResetEnabled(_trapResetEnabled);
 
             if (!_graph.PlaceDefense(node, defense))
             {
@@ -305,13 +342,13 @@ namespace DontLetThemIn.Defenses
 
             _selectedDefenseIndex = Mathf.Clamp(index, 0, _availableDefenses.Count - 1);
             _barricadeMode = false;
-            RefreshPaletteSelection();
+            RefreshPaletteVisuals();
         }
 
         public void ToggleBarricadeMode()
         {
             _barricadeMode = !_barricadeMode;
-            RefreshPaletteSelection();
+            RefreshPaletteVisuals();
             if (_barricadeMode)
             {
                 ShowFeedback("Barricade mode: select weak point (30 Scrap)", new Color(0.72f, 0.9f, 1f, 1f));
@@ -380,7 +417,9 @@ namespace DontLetThemIn.Defenses
 
         private void UpdatePlacementIndicator()
         {
-            if (_placementIndicator == null || _camera == null || EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+            if (_placementIndicator == null ||
+                _camera == null ||
+                EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
             {
                 if (_placementIndicator != null)
                 {
@@ -397,6 +436,7 @@ namespace DontLetThemIn.Defenses
 #else
             Vector2 pointerPosition = Input.mousePosition;
 #endif
+
             if (!TryGetNodeForScreenPosition(pointerPosition, out GridNode node))
             {
                 _placementIndicator.enabled = false;
@@ -411,7 +451,11 @@ namespace DontLetThemIn.Defenses
             }
             else
             {
-                valid = CanPlaceOnNode(node, selected) && !(selected != null && selected.MaxActivePerFloor == 1 && selected.Category == DefenseCategory.C && HasActivePet());
+                valid = CanPlaceOnNode(node, selected) &&
+                        !(selected != null &&
+                          selected.MaxActivePerFloor == 1 &&
+                          selected.Category == DefenseCategory.C &&
+                          HasActivePet());
             }
 
             _placementIndicator.enabled = true;
@@ -423,11 +467,6 @@ namespace DontLetThemIn.Defenses
 
         private void BuildPaletteUI()
         {
-            if (_availableDefenses.Count == 0)
-            {
-                return;
-            }
-
             Canvas canvas = Object.FindFirstObjectByType<Canvas>();
             if (canvas == null)
             {
@@ -438,7 +477,7 @@ namespace DontLetThemIn.Defenses
                 canvasObject.AddComponent<GraphicRaycaster>();
             }
 
-            Transform existing = canvas.transform.Find("DefensePalette");
+            Transform existing = canvas.transform.Find("DefensePaletteRoot");
             if (existing != null)
             {
                 if (Application.isPlaying)
@@ -453,45 +492,98 @@ namespace DontLetThemIn.Defenses
 
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
-            GameObject panel = new("DefensePalette");
-            panel.transform.SetParent(canvas.transform, false);
-            RectTransform panelRect = panel.AddComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(0.5f, 0f);
-            panelRect.anchorMax = new Vector2(0.5f, 0f);
-            panelRect.pivot = new Vector2(0.5f, 0f);
-            float spacing = 205f;
-            int totalButtons = _availableDefenses.Count + 1;
-            float width = Mathf.Max(920f, totalButtons * spacing + 120f);
-            panelRect.sizeDelta = new Vector2(width, 140f);
-            panelRect.anchoredPosition = new Vector2(0f, 0f);
+            GameObject root = new("DefensePaletteRoot");
+            root.transform.SetParent(canvas.transform, false);
+            RectTransform rootRect = root.AddComponent<RectTransform>();
+            rootRect.anchorMin = new Vector2(0.5f, 0f);
+            rootRect.anchorMax = new Vector2(0.5f, 0f);
+            rootRect.pivot = new Vector2(0.5f, 0f);
+            rootRect.anchoredPosition = new Vector2(0f, 0f);
+            rootRect.sizeDelta = new Vector2(980f, 168f);
 
-            Image panelImage = panel.AddComponent<Image>();
-            panelImage.color = new Color(0.07f, 0.08f, 0.11f, 0.8f);
+            Image rootImage = root.AddComponent<Image>();
+            rootImage.color = new Color(0.07f, 0.08f, 0.11f, 0.84f);
 
-            _paletteButtons.Clear();
-            float startX = -((totalButtons - 1) * spacing) * 0.5f;
+            GameObject headerObject = new("PaletteHeader");
+            headerObject.transform.SetParent(root.transform, false);
+            RectTransform headerRect = headerObject.AddComponent<RectTransform>();
+            headerRect.anchorMin = new Vector2(0.5f, 1f);
+            headerRect.anchorMax = new Vector2(0.5f, 1f);
+            headerRect.pivot = new Vector2(0.5f, 1f);
+            headerRect.anchoredPosition = new Vector2(0f, -8f);
+            headerRect.sizeDelta = new Vector2(360f, 28f);
+
+            Text headerText = headerObject.AddComponent<Text>();
+            headerText.font = font;
+            headerText.fontSize = 17;
+            headerText.alignment = TextAnchor.MiddleCenter;
+            headerText.color = new Color(0.9f, 0.92f, 0.95f, 0.95f);
+            headerText.text = "DEFENSE PALETTE";
+
+            GameObject scrollObject = new("PaletteScroll");
+            scrollObject.transform.SetParent(root.transform, false);
+            RectTransform scrollRectTransform = scrollObject.AddComponent<RectTransform>();
+            scrollRectTransform.anchorMin = new Vector2(0f, 0f);
+            scrollRectTransform.anchorMax = new Vector2(1f, 1f);
+            scrollRectTransform.offsetMin = new Vector2(18f, 12f);
+            scrollRectTransform.offsetMax = new Vector2(-18f, -38f);
+
+            ScrollRect scrollRect = scrollObject.AddComponent<ScrollRect>();
+            scrollRect.horizontal = true;
+            scrollRect.vertical = false;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.scrollSensitivity = 25f;
+
+            GameObject viewportObject = new("Viewport");
+            viewportObject.transform.SetParent(scrollObject.transform, false);
+            RectTransform viewportRect = viewportObject.AddComponent<RectTransform>();
+            viewportRect.anchorMin = Vector2.zero;
+            viewportRect.anchorMax = Vector2.one;
+            viewportRect.offsetMin = Vector2.zero;
+            viewportRect.offsetMax = Vector2.zero;
+            Image viewportImage = viewportObject.AddComponent<Image>();
+            viewportImage.color = new Color(0f, 0f, 0f, 0f);
+            Mask mask = viewportObject.AddComponent<Mask>();
+            mask.showMaskGraphic = false;
+
+            GameObject contentObject = new("Content");
+            contentObject.transform.SetParent(viewportObject.transform, false);
+            RectTransform contentRect = contentObject.AddComponent<RectTransform>();
+            contentRect.anchorMin = new Vector2(0f, 0.5f);
+            contentRect.anchorMax = new Vector2(0f, 0.5f);
+            contentRect.pivot = new Vector2(0f, 0.5f);
+            contentRect.anchoredPosition = Vector2.zero;
+            contentRect.sizeDelta = new Vector2(Mathf.Max(860f, (_availableDefenses.Count + 1) * 210f + 70f), 104f);
+
+            scrollRect.viewport = viewportRect;
+            scrollRect.content = contentRect;
+
+            _paletteEntries.Clear();
+            float x = 14f;
+            const float spacing = 202f;
+
             for (int i = 0; i < _availableDefenses.Count; i++)
             {
-                DefenseData data = _availableDefenses[i];
-                float x = startX + (i * spacing);
-                Button button = CreatePaletteButton(panel.transform, font, data, i, x);
-                _paletteButtons.Add(button);
+                DefenseData defenseData = _availableDefenses[i];
+                PaletteEntry entry = CreatePaletteButton(contentRect, font, defenseData, i, x);
+                _paletteEntries.Add(entry);
+                x += spacing;
             }
 
-            _barricadeButton = CreateBarricadeButton(panel.transform, font, startX + (_availableDefenses.Count * spacing));
+            _barricadeButton = CreateBarricadeButton(contentRect, font, x);
 
-            GameObject feedbackObj = new("PlacementFeedback");
-            feedbackObj.transform.SetParent(panel.transform, false);
-            RectTransform feedbackRect = feedbackObj.AddComponent<RectTransform>();
+            GameObject feedbackObject = new("PlacementFeedback");
+            feedbackObject.transform.SetParent(root.transform, false);
+            RectTransform feedbackRect = feedbackObject.AddComponent<RectTransform>();
             feedbackRect.anchorMin = new Vector2(0.5f, 1f);
             feedbackRect.anchorMax = new Vector2(0.5f, 1f);
             feedbackRect.pivot = new Vector2(0.5f, 0.5f);
-            feedbackRect.anchoredPosition = new Vector2(0f, 18f);
-            feedbackRect.sizeDelta = new Vector2(560f, 30f);
+            feedbackRect.anchoredPosition = new Vector2(0f, 16f);
+            feedbackRect.sizeDelta = new Vector2(620f, 28f);
 
-            _feedbackText = feedbackObj.AddComponent<Text>();
+            _feedbackText = feedbackObject.AddComponent<Text>();
             _feedbackText.font = font;
-            _feedbackText.fontSize = 20;
+            _feedbackText.fontSize = 19;
             _feedbackText.alignment = TextAnchor.MiddleCenter;
             _feedbackText.color = Color.white;
             _feedbackText.text = string.Empty;
@@ -500,17 +592,17 @@ namespace DontLetThemIn.Defenses
             SelectDefense(_selectedDefenseIndex);
         }
 
-        private Button CreatePaletteButton(Transform parent, Font font, DefenseData data, int index, float anchoredX)
+        private PaletteEntry CreatePaletteButton(Transform parent, Font font, DefenseData data, int index, float anchoredX)
         {
             GameObject buttonObject = new($"{data.DefenseName}_Button");
             buttonObject.transform.SetParent(parent, false);
 
             RectTransform rect = buttonObject.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0f);
-            rect.anchorMax = new Vector2(0.5f, 0f);
-            rect.pivot = new Vector2(0.5f, 0f);
-            rect.anchoredPosition = new Vector2(anchoredX, 22f);
-            rect.sizeDelta = new Vector2(195f, 90f);
+            rect.anchorMin = new Vector2(0f, 0.5f);
+            rect.anchorMax = new Vector2(0f, 0.5f);
+            rect.pivot = new Vector2(0f, 0.5f);
+            rect.anchoredPosition = new Vector2(anchoredX, 0f);
+            rect.sizeDelta = new Vector2(190f, 90f);
 
             Image image = buttonObject.AddComponent<Image>();
             image.color = new Color(0.18f, 0.2f, 0.25f, 0.92f);
@@ -525,7 +617,7 @@ namespace DontLetThemIn.Defenses
             swatchRect.anchorMin = new Vector2(0f, 0.5f);
             swatchRect.anchorMax = new Vector2(0f, 0.5f);
             swatchRect.pivot = new Vector2(0f, 0.5f);
-            swatchRect.anchoredPosition = new Vector2(12f, 0f);
+            swatchRect.anchoredPosition = new Vector2(10f, 0f);
             swatchRect.sizeDelta = new Vector2(26f, 26f);
             Image swatchImage = swatch.AddComponent<Image>();
             swatchImage.color = data.DisplayColor;
@@ -535,49 +627,23 @@ namespace DontLetThemIn.Defenses
             RectTransform labelRect = labelObject.AddComponent<RectTransform>();
             labelRect.anchorMin = new Vector2(0f, 0f);
             labelRect.anchorMax = new Vector2(1f, 1f);
-            labelRect.offsetMin = new Vector2(44f, 8f);
+            labelRect.offsetMin = new Vector2(44f, 6f);
             labelRect.offsetMax = new Vector2(-8f, -8f);
 
             Text label = labelObject.AddComponent<Text>();
             label.font = font;
-            label.fontSize = 16;
+            label.fontSize = 15;
             label.alignment = TextAnchor.MiddleLeft;
             label.color = Color.white;
             label.text = $"{data.DefenseName}\n{data.ScrapCost} Scrap";
 
-            return button;
-        }
-
-        private void RefreshPaletteSelection()
-        {
-            for (int i = 0; i < _paletteButtons.Count; i++)
+            return new PaletteEntry
             {
-                if (_paletteButtons[i] == null)
-                {
-                    continue;
-                }
-
-                Image image = _paletteButtons[i].GetComponent<Image>();
-                if (image == null)
-                {
-                    continue;
-                }
-
-                image.color = i == _selectedDefenseIndex
-                    ? new Color(0.28f, 0.37f, 0.5f, 0.96f)
-                    : new Color(0.18f, 0.2f, 0.25f, 0.92f);
-            }
-
-            if (_barricadeButton != null)
-            {
-                Image barricadeImage = _barricadeButton.GetComponent<Image>();
-                if (barricadeImage != null)
-                {
-                    barricadeImage.color = _barricadeMode
-                        ? new Color(0.26f, 0.46f, 0.64f, 0.96f)
-                        : new Color(0.18f, 0.2f, 0.25f, 0.92f);
-                }
-            }
+                Data = data,
+                Button = button,
+                Background = image,
+                Label = label
+            };
         }
 
         private Button CreateBarricadeButton(Transform parent, Font font, float anchoredX)
@@ -586,11 +652,11 @@ namespace DontLetThemIn.Defenses
             buttonObject.transform.SetParent(parent, false);
 
             RectTransform rect = buttonObject.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0f);
-            rect.anchorMax = new Vector2(0.5f, 0f);
-            rect.pivot = new Vector2(0.5f, 0f);
-            rect.anchoredPosition = new Vector2(anchoredX, 22f);
-            rect.sizeDelta = new Vector2(195f, 90f);
+            rect.anchorMin = new Vector2(0f, 0.5f);
+            rect.anchorMax = new Vector2(0f, 0.5f);
+            rect.pivot = new Vector2(0f, 0.5f);
+            rect.anchoredPosition = new Vector2(anchoredX, 0f);
+            rect.sizeDelta = new Vector2(190f, 90f);
 
             Image image = buttonObject.AddComponent<Image>();
             image.color = new Color(0.18f, 0.2f, 0.25f, 0.92f);
@@ -606,13 +672,81 @@ namespace DontLetThemIn.Defenses
             labelRect.offsetMin = new Vector2(8f, 8f);
             labelRect.offsetMax = new Vector2(-8f, -8f);
 
-            Text label = labelObject.AddComponent<Text>();
-            label.font = font;
-            label.fontSize = 16;
-            label.alignment = TextAnchor.MiddleCenter;
-            label.color = Color.white;
-            label.text = "Barricade\\nWeak Point\\n30 Scrap";
+            _barricadeLabel = labelObject.AddComponent<Text>();
+            _barricadeLabel.font = font;
+            _barricadeLabel.fontSize = 15;
+            _barricadeLabel.alignment = TextAnchor.MiddleCenter;
+            _barricadeLabel.color = Color.white;
+            _barricadeLabel.text = "Barricade\nWeak Point\n30 Scrap";
             return button;
+        }
+
+        private void OnScrapChanged(int _)
+        {
+            RefreshPaletteVisuals();
+        }
+
+        private void RefreshPaletteVisuals()
+        {
+            for (int i = 0; i < _paletteEntries.Count; i++)
+            {
+                PaletteEntry entry = _paletteEntries[i];
+                if (entry?.Button == null || entry.Background == null || entry.Data == null)
+                {
+                    continue;
+                }
+
+                bool affordable = _scrapManager == null || _scrapManager.CanAfford(entry.Data.ScrapCost);
+                bool selected = !_barricadeMode && i == _selectedDefenseIndex;
+
+                entry.Button.interactable = affordable;
+
+                Color color = selected
+                    ? new Color(0.3f, 0.38f, 0.5f, 0.96f)
+                    : new Color(0.18f, 0.2f, 0.25f, 0.92f);
+
+                if (!affordable)
+                {
+                    color = Color.Lerp(color, new Color(0.15f, 0.15f, 0.15f, 0.72f), 0.55f);
+                }
+
+                entry.Background.color = color;
+                if (entry.Label != null)
+                {
+                    entry.Label.color = affordable
+                        ? Color.white
+                        : new Color(0.74f, 0.74f, 0.74f, 0.85f);
+                    entry.Label.text = $"{entry.Data.DefenseName}\n{entry.Data.ScrapCost} Scrap";
+                }
+            }
+
+            if (_barricadeButton != null)
+            {
+                Image barricadeImage = _barricadeButton.GetComponent<Image>();
+                if (barricadeImage != null)
+                {
+                    bool affordable = _scrapManager == null || _scrapManager.CanAfford(BarricadeScrapCost);
+                    _barricadeButton.interactable = affordable;
+
+                    Color color = _barricadeMode
+                        ? new Color(0.26f, 0.46f, 0.64f, 0.96f)
+                        : new Color(0.18f, 0.2f, 0.25f, 0.92f);
+
+                    if (!affordable)
+                    {
+                        color = Color.Lerp(color, new Color(0.15f, 0.15f, 0.15f, 0.72f), 0.55f);
+                    }
+
+                    barricadeImage.color = color;
+
+                    if (_barricadeLabel != null)
+                    {
+                        _barricadeLabel.color = affordable
+                            ? Color.white
+                            : new Color(0.74f, 0.74f, 0.74f, 0.85f);
+                    }
+                }
+            }
         }
 
         private void ShowFeedback(string message, Color color)
@@ -639,6 +773,14 @@ namespace DontLetThemIn.Defenses
             {
                 _feedbackText.gameObject.SetActive(false);
             }
+        }
+
+        private sealed class PaletteEntry
+        {
+            public DefenseData Data;
+            public Button Button;
+            public Image Background;
+            public Text Label;
         }
     }
 }

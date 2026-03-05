@@ -27,6 +27,7 @@ namespace DontLetThemIn.Defenses
         private float _statusUntil;
         private string _statusText;
         private TextMesh _statusLabel;
+        private bool _trapResetEnabled;
 
         public DefenseData Data { get; private set; }
 
@@ -36,6 +37,8 @@ namespace DontLetThemIn.Defenses
 
         public event System.Action<DefenseInstance> Destroyed;
 
+        public event System.Action<DefenseInstance, AlienBase> AlienEliminated;
+
         public bool IsConsumed => _isConsumed;
 
         public bool IsDisabled => Time.unscaledTime < _disabledUntil;
@@ -43,6 +46,8 @@ namespace DontLetThemIn.Defenses
         public bool IsOperational => !_isConsumed && !IsDisabled;
 
         public float CurrentHealth => _health;
+
+        public int Kills { get; private set; }
 
         public void Initialize(DefenseData data, GridNode node, NodeGraph graph)
         {
@@ -71,6 +76,11 @@ namespace DontLetThemIn.Defenses
             EnsureStatusLabel();
         }
 
+        public void SetTrapResetEnabled(bool enabled)
+        {
+            _trapResetEnabled = enabled;
+        }
+
         public bool TryApplyDamage(AlienBase alien, GridNode alienNode)
         {
             if (_isConsumed || IsDisabled || alien == null || Data == null || Data.Category != DefenseCategory.A)
@@ -96,7 +106,7 @@ namespace DontLetThemIn.Defenses
                 return false;
             }
 
-            alien.TakeDamage(Data.Damage);
+            ApplyDamageAndTrackKill(alien, Data.Damage);
             if (alien is StalkerAlien stalker && !stalker.IsVisible)
             {
                 stalker.Reveal(1f);
@@ -114,7 +124,15 @@ namespace DontLetThemIn.Defenses
                 _usesRemaining--;
                 if (_usesRemaining == 0)
                 {
-                    Consume();
+                    if (_trapResetEnabled)
+                    {
+                        _usesRemaining = Mathf.Max(1, Data.Uses);
+                        ShowStatus("RESET", 0.45f);
+                    }
+                    else
+                    {
+                        Consume();
+                    }
                 }
             }
 
@@ -166,7 +184,7 @@ namespace DontLetThemIn.Defenses
                 return;
             }
 
-            target.TakeDamage(Data.Damage);
+            ApplyDamageAndTrackKill(target, Data.Damage);
             ActivatePulse();
             _nextAttackTime = Time.unscaledTime + Mathf.Max(0.1f, Data.AttackInterval);
         }
@@ -215,7 +233,7 @@ namespace DontLetThemIn.Defenses
                 return;
             }
 
-            _petTarget.TakeDamage(Data.Damage);
+            ApplyDamageAndTrackKill(_petTarget, Data.Damage);
             if (Data.KnockbackNodes > 0)
             {
                 _petTarget.ApplyKnockback(Data.KnockbackNodes);
@@ -260,10 +278,26 @@ namespace DontLetThemIn.Defenses
                 return;
             }
 
-            target.TakeDamage(Data.Damage);
+            ApplyDamageAndTrackKill(target, Data.Damage);
             target.ApplyRoombaDetour();
             ActivatePulse();
             _nextAttackTime = Time.unscaledTime + Mathf.Max(0.1f, Data.AttackInterval);
+        }
+
+        private void ApplyDamageAndTrackKill(AlienBase alien, float damage)
+        {
+            if (alien == null || damage <= 0f)
+            {
+                return;
+            }
+
+            bool wasAlive = alien.IsAlive;
+            alien.TakeDamage(damage);
+            if (wasAlive && !alien.IsAlive)
+            {
+                Kills++;
+                AlienEliminated?.Invoke(this, alien);
+            }
         }
 
         private AlienBase FindNearestTarget(

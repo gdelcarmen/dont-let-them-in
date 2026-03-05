@@ -133,6 +133,21 @@ namespace DontLetThemIn.Core
             return CreateStage3DefenseSet();
         }
 
+        public static DefenseData[] CreateStage6DefenseCatalog()
+        {
+            return new[]
+            {
+                CreatePaintCanPendulumDefense(),
+                CreateTripwireDefense(),
+                CreateShotgunMountDefense(),
+                CreateArcLauncherDefense(),
+                CreateDogDefense(),
+                CreateScoutFerretDefense(),
+                CreateRoombaDefense(),
+                CreateCameraNetworkDefense()
+            };
+        }
+
         public static DefenseData CreatePaintCanPendulumDefense()
         {
             DefenseData data = ScriptableObject.CreateInstance<DefenseData>();
@@ -155,6 +170,25 @@ namespace DontLetThemIn.Core
             return data;
         }
 
+        public static DefenseData CreateTripwireDefense()
+        {
+            DefenseData data = ScriptableObject.CreateInstance<DefenseData>();
+            data.name = "Tripwire_Runtime";
+            data.DefenseName = "Tripwire Trap";
+            data.Category = DefenseCategory.A;
+            data.ScrapCost = 15;
+            data.Damage = 20f;
+            data.Range = 0;
+            data.Uses = 1;
+            data.AttackInterval = 0.2f;
+            data.RequiresHallwayPlacement = true;
+            data.Description = "Low-cost wire trap for choke points.";
+            data.BlocksPath = true;
+            data.DisplayColor = new Color(0.96f, 0.64f, 0.24f, 1f);
+            data.MaxHealth = 26f;
+            return data;
+        }
+
         public static DefenseData CreateShotgunMountDefense()
         {
             DefenseData data = ScriptableObject.CreateInstance<DefenseData>();
@@ -170,6 +204,24 @@ namespace DontLetThemIn.Core
             data.BlocksPath = false;
             data.DisplayColor = new Color(0.88f, 0.22f, 0.2f, 1f);
             data.MaxHealth = 42f;
+            return data;
+        }
+
+        public static DefenseData CreateArcLauncherDefense()
+        {
+            DefenseData data = ScriptableObject.CreateInstance<DefenseData>();
+            data.name = "ArcLauncher_Runtime";
+            data.DefenseName = "Arc Launcher";
+            data.Category = DefenseCategory.B;
+            data.ScrapCost = 45;
+            data.Damage = 11f;
+            data.Range = 3;
+            data.Uses = -1;
+            data.AttackInterval = 1.2f;
+            data.Description = "Electrical mount with steady damage and better reach.";
+            data.BlocksPath = false;
+            data.DisplayColor = new Color(0.95f, 0.3f, 0.2f, 1f);
+            data.MaxHealth = 40f;
             return data;
         }
 
@@ -193,6 +245,29 @@ namespace DontLetThemIn.Core
             data.BlocksPath = false;
             data.DisplayColor = new Color(0.45f, 0.3f, 0.18f, 1f);
             data.MaxHealth = 48f;
+            return data;
+        }
+
+        public static DefenseData CreateScoutFerretDefense()
+        {
+            DefenseData data = ScriptableObject.CreateInstance<DefenseData>();
+            data.name = "ScoutFerret_Runtime";
+            data.DefenseName = "Scout Ferret";
+            data.Category = DefenseCategory.C;
+            data.ScrapCost = 50;
+            data.Damage = 8f;
+            data.Range = 99;
+            data.Uses = -1;
+            data.AttackInterval = 0.8f;
+            data.MoveSpeed = 5.2f;
+            data.ContactRadius = 0.28f;
+            data.EffectDuration = 0.6f;
+            data.KnockbackNodes = 1;
+            data.MaxActivePerFloor = 1;
+            data.Description = "Fast pet option that harasses isolated targets.";
+            data.BlocksPath = false;
+            data.DisplayColor = new Color(0.58f, 0.42f, 0.22f, 1f);
+            data.MaxHealth = 38f;
             return data;
         }
 
@@ -223,7 +298,7 @@ namespace DontLetThemIn.Core
             data.name = "CameraNetwork_Runtime";
             data.DefenseName = "Camera Network";
             data.Category = DefenseCategory.D;
-            data.ScrapCost = 40;
+            data.ScrapCost = 55;
             data.Damage = 0f;
             data.Range = 0;
             data.Uses = -1;
@@ -244,7 +319,7 @@ namespace DontLetThemIn.Core
             data.AlienType = AlienType.Grey;
             data.MaxHealth = 24f;
             data.Speed = 2f;
-            data.ScrapReward = 15;
+            data.ScrapReward = 2;
             data.HasSpecialAbility = false;
             data.CanBreachWalls = false;
             data.StartsInvisible = false;
@@ -259,7 +334,7 @@ namespace DontLetThemIn.Core
             data.AlienType = AlienType.Stalker;
             data.MaxHealth = 34f;
             data.Speed = 2.6f;
-            data.ScrapReward = 20;
+            data.ScrapReward = 5;
             data.HasSpecialAbility = true;
             data.CanBreachWalls = false;
             data.StartsInvisible = true;
@@ -274,7 +349,7 @@ namespace DontLetThemIn.Core
             data.AlienType = AlienType.TechUnit;
             data.MaxHealth = 45f;
             data.Speed = 1.65f;
-            data.ScrapReward = 28;
+            data.ScrapReward = 10;
             data.HasSpecialAbility = true;
             data.CanBreachWalls = true;
             data.StartsInvisible = false;
@@ -289,7 +364,7 @@ namespace DontLetThemIn.Core
             data.AlienType = AlienType.Overlord;
             data.MaxHealth = 140f;
             data.Speed = 1.1f;
-            data.ScrapReward = 80;
+            data.ScrapReward = 50;
             data.HasSpecialAbility = true;
             data.CanBreachWalls = true;
             data.StartsInvisible = false;

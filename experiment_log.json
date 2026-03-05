@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-03-05T13:38:50Z",
-  "pipeline_stage": "stage5_floor_progression_multi_floor_system",
-  "action": "implement_three_floor_progression_prep_phase_run_state_machine_and_tests",
+  "timestamp": "2026-03-05T14:04:11Z",
+  "pipeline_stage": "stage6_economy_draft_ui_finalization",
+  "action": "implement_draft_picks_full_hud_and_finalize_scrap_economy_with_tests",
   "tool_used": "unity_mcp",
   "outcome": "success",
-  "retry_count": 0,
+  "retry_count": 1,
   "human_intervention_required": false,
   "intervention_reason": "",
-  "notes": "Implemented Stage 5 multi-floor run flow on top of Stages 1-4: rebuilt GameManager with a full floor progression state machine (PrepPhase/WaveActive/WaveClear/FloorClear/DraftPick/FloorLost/Transitioning/RunEnd), 3-floor layout/wave support, floor clear + draft transition flow, floor-loss retreat flow with scrap penalty (60/40/20), and run-end victory/defeat overlay statistics. Updated editor scaffold generation to create Ground/Upper/Attic floor assets and wave sets, and wire new GameManager serialized fields. Added Stage 5 EditMode/PlayMode tests for floor transitions, penalties, attic loss/victory conditions, and run-end flow. Verification: 0 compilation errors, EditMode 19/19 passing, PlayMode 12/12 passing, GameScene play sanity check confirmed active wave spawning (TotalSpawned=5 by ~20s), floor graph instantiated, Safe Room integrity updates during attacks, and runtime console error count 0."
+  "notes": "Implemented Stage 6 systems on top of Stage 5: added a runtime DraftSystem with 10-card pool (new defense/upgrade/perk types), per-floor draft selection flow, persistent perk effects (starting scrap bonus and trap reset), and draft-driven defense unlock/upgrades. Finalized economy wiring: starting scrap baseline 60 with floor-loss penalty handling, passive +3 scrap per wave clear, and kill rewards set to Grey 2 / Stalker 5 / Tech Unit 10 / Overlord 50. Reworked HUDController for animated scrap counter, wave countdown display, floor + integrity bar UI, richer draft cards, and expanded run-end overlay (best defense + ad placeholder). Rebuilt DefensePlacementController palette into a horizontal scrollable UI with affordability greying and selection highlighting; added trap-reset perk support through DefenseInstance. Added MainMenuController runtime setup for Campaign plus disabled Endless/Meta buttons with Coming Soon badges. Added Stage 6 EditMode and PlayMode test suites covering draft/economy/run-end flow and menu return path. Verification: zero compile errors, EditMode 23/23 passing, PlayMode 15/15 passing, GameScene play-mode sanity confirmed floor renderer/spawner/HUD systems active with runtime wave progression and console error count 0."
 }

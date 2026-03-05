@@ -33,7 +33,6 @@ namespace DontLetThemIn.Hazards
 
         [Header("Boss")]
         [SerializeField] private float bossSpeedBuffMultiplier = 1.3f;
-        [SerializeField] private int overlordBonusScrap = 50;
 
         private readonly List<CollateralZone> _zones = new();
         private readonly Dictionary<TechUnitAlien, HackChannel> _hackChannels = new();
@@ -659,8 +658,7 @@ namespace DontLetThemIn.Hazards
         {
             if (alien is OverlordAlien)
             {
-                _scrapManager.Add(overlordBonusScrap);
-                _hud?.SetStatus("Overlord defeated! +50 Scrap cache secured.");
+                _hud?.SetStatus("Overlord defeated! Scrap cache secured.");
                 _activeBoss = null;
                 _bossWaveActive = false;
                 ResetActiveAlienSpeedModifiers();

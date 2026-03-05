@@ -22,6 +22,7 @@ namespace DontLetThemIn.Core
         [SerializeField] private string[] floorDisplayNames;
         [SerializeField] private DefenseData defaultDefense;
         [SerializeField] private DefenseData[] availableDefenses;
+        [SerializeField] private DefenseData[] draftDefenseCatalog;
         [SerializeField] private AlienData greyAlien;
         [SerializeField] private AlienData stalkerAlien;
         [SerializeField] private AlienData techUnitAlien;
@@ -33,12 +34,17 @@ namespace DontLetThemIn.Core
         [Header("Run Settings")]
         [SerializeField] private int startingScrap = 60;
         [SerializeField] private int startingSafeRoomIntegrity = 10;
+        [SerializeField] private int passiveWaveCompletionScrap = 3;
+        [SerializeField] private bool resetScrapAtEachFloorStart = true;
         [SerializeField] private float prepPhaseDurationSeconds = 15f;
         [SerializeField] private float floorTransitionDelaySeconds = 1.25f;
         [SerializeField] private bool autoSelectDraftForAutomation;
 
         private readonly GameStateMachine _stateMachine = new();
         private readonly List<IReadOnlyList<GridNode>> _debugPaths = new();
+        private readonly Dictionary<string, int> _defenseKillCounts = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<DefenseData> _runAvailableDefenses = new();
+        private readonly List<DefenseData> _runDefenseCatalog = new();
 
         private NodeGraph _graph;
         private RunProgressionState _runProgression;
@@ -52,10 +58,16 @@ namespace DontLetThemIn.Core
         private Transform _defenseRoot;
         private Coroutine _prepRoutine;
         private Coroutine _transitionRoutine;
+        private Coroutine _waveCountdownRoutine;
+
+        private DraftSystem _draftSystem;
+        private IReadOnlyList<DraftOffer> _currentDraftOffers = Array.Empty<DraftOffer>();
+        private int _pendingDraftSelectionIndex = -1;
 
         private int _safeRoomIntegrity;
         private int _killCount;
         private int _totalScrapEarned;
+        private int _currentFloorStartingScrap;
         private bool _isTransitioningFloor;
 
         public GameState CurrentState => _stateMachine.CurrentState;
@@ -78,7 +90,13 @@ namespace DontLetThemIn.Core
 
         public int CurrentScrap => _scrapManager?.CurrentScrap ?? 0;
 
+        public int CurrentFloorStartingScrap => _currentFloorStartingScrap;
+
         public string CurrentFloorName => ResolveFloorDisplayName(CurrentFloorIndex);
+
+        public IReadOnlyList<DraftOffer> CurrentDraftOffers => _currentDraftOffers;
+
+        public int AvailableDefenseCount => _runAvailableDefenses.Count;
 
         private void Start()
         {
@@ -86,6 +104,10 @@ namespace DontLetThemIn.Core
             Time.timeScale = 1f;
 
             BootstrapRuntimeData();
+            NormalizeEconomyData();
+            BuildRunDefenseData();
+            _draftSystem = new DraftSystem(DraftSystem.CreateDefaultPool(_runDefenseCatalog));
+
             BuildPersistentSystems();
 
             _runProgression = new RunProgressionState(Mathf.Max(1, floorLayouts.Length));
@@ -111,6 +133,13 @@ namespace DontLetThemIn.Core
                 _waveSpawner.AlienReachedSafeRoom -= OnAlienReachedSafeRoom;
                 _waveSpawner.AllWavesCompleted -= OnAllWavesCompleted;
             }
+
+            if (_defensePlacement != null)
+            {
+                _defensePlacement.DefensePlaced -= OnDefensePlaced;
+            }
+
+            StopWaveCountdownRoutine();
         }
 
         private void Update()
@@ -163,6 +192,44 @@ namespace DontLetThemIn.Core
             _scrapManager?.SetCurrentScrap(amount);
         }
 
+        public bool DebugSelectDraftOption(int index)
+        {
+            if (_stateMachine.CurrentState != GameState.DraftPick || _currentDraftOffers == null || _currentDraftOffers.Count == 0)
+            {
+                return false;
+            }
+
+            if (index < 0 || index >= _currentDraftOffers.Count)
+            {
+                return false;
+            }
+
+            _pendingDraftSelectionIndex = index;
+            return true;
+        }
+
+        public bool HasDraftPerk(DraftPerkType perkType)
+        {
+            return _draftSystem != null && _draftSystem.ActivePerks.Contains(perkType);
+        }
+
+        public string GetBestDefenseSummary()
+        {
+            return ResolveBestDefenseName();
+        }
+
+        public DefenseData GetAvailableDefenseByName(string defenseName)
+        {
+            if (string.IsNullOrWhiteSpace(defenseName))
+            {
+                return null;
+            }
+
+            return _runAvailableDefenses.FirstOrDefault(defense =>
+                defense != null &&
+                string.Equals(defense.DefenseName, defenseName, StringComparison.OrdinalIgnoreCase));
+        }
+
         private void BootstrapRuntimeData()
         {
             if (floorLayouts == null || floorLayouts.Length < 3)
@@ -180,9 +247,20 @@ namespace DontLetThemIn.Core
                 floorDisplayNames = new[] { "Ground Floor", "Upper Floor", "Attic" };
             }
 
-            if (availableDefenses == null || availableDefenses.Length < 5)
+            if (availableDefenses == null || availableDefenses.Length < 4)
             {
-                availableDefenses = Stage1DataFactory.CreateStage4DefenseSet();
+                availableDefenses = new[]
+                {
+                    Stage1DataFactory.CreatePaintCanPendulumDefense(),
+                    Stage1DataFactory.CreateShotgunMountDefense(),
+                    Stage1DataFactory.CreateDogDefense(),
+                    Stage1DataFactory.CreateRoombaDefense()
+                };
+            }
+
+            if (draftDefenseCatalog == null || draftDefenseCatalog.Length == 0)
+            {
+                draftDefenseCatalog = Stage1DataFactory.CreateStage6DefenseCatalog();
             }
 
             if (defaultDefense == null && availableDefenses.Length > 0)
@@ -226,6 +304,131 @@ namespace DontLetThemIn.Core
             }
         }
 
+        private void NormalizeEconomyData()
+        {
+            NormalizeAlienData(greyAlien, 2);
+            NormalizeAlienData(stalkerAlien, 5);
+            NormalizeAlienData(techUnitAlien, 10);
+            NormalizeAlienData(overlordAlien, 50);
+
+            foreach (DefenseData defense in availableDefenses ?? Array.Empty<DefenseData>())
+            {
+                NormalizeDefenseData(defense);
+            }
+
+            foreach (DefenseData defense in draftDefenseCatalog ?? Array.Empty<DefenseData>())
+            {
+                NormalizeDefenseData(defense);
+            }
+        }
+
+        private static void NormalizeAlienData(AlienData alien, int scrapReward)
+        {
+            if (alien == null)
+            {
+                return;
+            }
+
+            alien.ScrapReward = Mathf.Max(0, scrapReward);
+        }
+
+        private static void NormalizeDefenseData(DefenseData defense)
+        {
+            if (defense == null)
+            {
+                return;
+            }
+
+            defense.ScrapCost = defense.DefenseName switch
+            {
+                "Tripwire Trap" => 15,
+                "Paint Can Pendulum" => 20,
+                "Shotgun Mount" => 50,
+                "Arc Launcher" => 45,
+                "Dog" => 50,
+                "Scout Ferret" => 50,
+                "Roomba" => 60,
+                "Camera Network" => 55,
+                _ => defense.ScrapCost
+            };
+
+            switch (defense.Category)
+            {
+                case DefenseCategory.A:
+                    defense.ScrapCost = Mathf.Clamp(defense.ScrapCost, 15, 25);
+                    break;
+                case DefenseCategory.B:
+                    defense.ScrapCost = Mathf.Clamp(defense.ScrapCost, 40, 60);
+                    break;
+                case DefenseCategory.C:
+                    defense.ScrapCost = 50;
+                    break;
+                case DefenseCategory.D:
+                    defense.ScrapCost = Mathf.Clamp(defense.ScrapCost, 55, 80);
+                    break;
+            }
+        }
+
+        private void BuildRunDefenseData()
+        {
+            _runAvailableDefenses.Clear();
+            _runDefenseCatalog.Clear();
+
+            Dictionary<string, DefenseData> byName = new(StringComparer.OrdinalIgnoreCase);
+
+            void AddDefense(DefenseData source, bool unlock)
+            {
+                if (source == null || string.IsNullOrWhiteSpace(source.DefenseName))
+                {
+                    return;
+                }
+
+                NormalizeDefenseData(source);
+
+                if (!byName.TryGetValue(source.DefenseName, out DefenseData entry))
+                {
+                    entry = Instantiate(source);
+                    entry.name = $"{source.name}_RunClone";
+                    byName[source.DefenseName] = entry;
+                    _runDefenseCatalog.Add(entry);
+                }
+
+                if (unlock && !_runAvailableDefenses.Contains(entry))
+                {
+                    _runAvailableDefenses.Add(entry);
+                }
+            }
+
+            foreach (DefenseData defense in availableDefenses ?? Array.Empty<DefenseData>())
+            {
+                AddDefense(defense, unlock: true);
+            }
+
+            foreach (DefenseData defense in draftDefenseCatalog ?? Array.Empty<DefenseData>())
+            {
+                AddDefense(defense, unlock: false);
+            }
+
+            foreach (DefenseData defense in Stage1DataFactory.CreateStage6DefenseCatalog())
+            {
+                AddDefense(defense, unlock: false);
+            }
+
+            if (_runAvailableDefenses.Count == 0 && _runDefenseCatalog.Count > 0)
+            {
+                _runAvailableDefenses.Add(_runDefenseCatalog[0]);
+            }
+
+            if (defaultDefense != null && byName.TryGetValue(defaultDefense.DefenseName, out DefenseData clonedDefault))
+            {
+                defaultDefense = clonedDefault;
+            }
+            else if (_runAvailableDefenses.Count > 0)
+            {
+                defaultDefense = _runAvailableDefenses[0];
+            }
+        }
+
         private void BuildPersistentSystems()
         {
             _hud = FindOrCreateComponent<HUDController>("HUDCanvas");
@@ -233,6 +436,7 @@ namespace DontLetThemIn.Core
             _hud.RestartRequested -= RestartRun;
             _hud.RestartRequested += RestartRun;
             _hud.SetRestartVisible(true);
+            _hud.SetIntegrityMax(startingSafeRoomIntegrity);
 
             ScrapManagerComponent scrapComponent = FindOrCreateComponent<ScrapManagerComponent>("ScrapManager");
             _scrapManager = scrapComponent.Initialize(startingScrap);
@@ -257,12 +461,16 @@ namespace DontLetThemIn.Core
             _waveSpawner.AllWavesCompleted += OnAllWavesCompleted;
 
             _defensePlacement = FindOrCreateComponent<DefensePlacementController>("DefensePlacement");
+            _defensePlacement.DefensePlaced -= OnDefensePlaced;
+            _defensePlacement.DefensePlaced += OnDefensePlaced;
+
             _hazardSystem = FindOrCreateComponent<HazardSystem>("HazardSystem");
             _debugDrawer = FindOrCreateComponent<GridDebugDrawer>("GridDebug");
 
             _killCount = 0;
             _totalScrapEarned = 0;
             _safeRoomIntegrity = startingSafeRoomIntegrity;
+            _defenseKillCounts.Clear();
             _hud.SetIntegrity(_safeRoomIntegrity);
             _hud.SetStatus(string.Empty);
         }
@@ -292,7 +500,8 @@ namespace DontLetThemIn.Core
             _debugDrawer.Initialize(_graph);
 
             RecreateDefenseRoot();
-            _defensePlacement.Initialize(camera, _graph, _scrapManager, availableDefenses, _defenseRoot);
+            _defensePlacement.Initialize(camera, _graph, _scrapManager, _runAvailableDefenses, _defenseRoot);
+            _defensePlacement.SetTrapResetEnabled(_draftSystem != null && _draftSystem.TrapResetEnabled);
             _defensePlacement.SetPlacementEnabled(true);
 
             WaveConfig[] floorWaves = GetWaveConfigsForFloor(CurrentFloorIndex);
@@ -314,15 +523,34 @@ namespace DontLetThemIn.Core
                 enableBossWaves);
 
             _safeRoomIntegrity = startingSafeRoomIntegrity;
+            _hud.SetIntegrityMax(startingSafeRoomIntegrity);
+            _hud.SetIntegrity(_safeRoomIntegrity);
             _hud.SetFloorName(ResolveFloorDisplayName(CurrentFloorIndex));
             _hud.SetWave(0, Mathf.Max(1, floorWaves.Length));
-            _hud.SetIntegrity(_safeRoomIntegrity);
-            _hud.SetScrap(_scrapManager.CurrentScrap);
-            _hud.SetStatus(status);
+            _hud.HideWaveCountdown();
             _hud.HideDraftPick();
             _hud.HideRunEndOverlay();
 
+            if (resetScrapAtEachFloorStart || CurrentFloorIndex == 0)
+            {
+                _currentFloorStartingScrap = CalculateStartingScrapForCurrentFloor();
+                _scrapManager.SetCurrentScrap(_currentFloorStartingScrap);
+            }
+            else
+            {
+                _currentFloorStartingScrap = _scrapManager.CurrentScrap;
+            }
+
+            _hud.SetScrap(_scrapManager.CurrentScrap);
+            _hud.SetStatus(status);
+
             BeginPrepPhase();
+        }
+
+        private int CalculateStartingScrapForCurrentFloor()
+        {
+            int bonus = _draftSystem != null ? _draftSystem.StartingScrapBonus : 0;
+            return _runProgression.CalculateStartingScrap(startingScrap + bonus);
         }
 
         private void BeginPrepPhase()
@@ -380,6 +608,9 @@ namespace DontLetThemIn.Core
 
         private void OnWaveStarted(int wave, int total, WaveConfig _)
         {
+            StopWaveCountdownRoutine();
+            _hud?.HideWaveCountdown();
+
             if (_stateMachine.CurrentState == GameState.PrepPhase || _stateMachine.CurrentState == GameState.WaveClear)
             {
                 if (!_stateMachine.TrySetState(GameState.WaveActive))
@@ -392,7 +623,7 @@ namespace DontLetThemIn.Core
             _hud?.SetStatus($"Wave {wave}/{total} active.");
         }
 
-        private void OnWaveCompleted(int wave, int total, WaveConfig _)
+        private void OnWaveCompleted(int wave, int total, WaveConfig waveConfig)
         {
             if (_stateMachine.CurrentState == GameState.WaveActive)
             {
@@ -402,17 +633,73 @@ namespace DontLetThemIn.Core
                 }
             }
 
-            _hud?.SetStatus($"Wave {wave}/{total} cleared.");
+            AwardScrap(passiveWaveCompletionScrap);
+            _hud?.SetStatus($"Wave {wave}/{total} cleared. +{passiveWaveCompletionScrap} Scrap");
+
+            if (wave < total)
+            {
+                StartWaveCountdown(waveConfig != null ? waveConfig.PostWaveDelay : 0f);
+            }
+            else
+            {
+                _hud?.HideWaveCountdown();
+            }
         }
 
         private void OnAllWavesCompleted()
         {
+            StopWaveCountdownRoutine();
+            _hud?.HideWaveCountdown();
+
             if (_waveSpawner.ActiveAliens.Count > 0 || _stateMachine.CurrentState == GameState.RunEnd)
             {
                 return;
             }
 
             HandleFloorCleared();
+        }
+
+        private void StartWaveCountdown(float postWaveDelay)
+        {
+            StopWaveCountdownRoutine();
+            if (postWaveDelay <= 0f)
+            {
+                _hud?.HideWaveCountdown();
+                return;
+            }
+
+            _waveCountdownRoutine = StartCoroutine(WaveCountdownRoutine(postWaveDelay));
+        }
+
+        private IEnumerator WaveCountdownRoutine(float remaining)
+        {
+            int lastDisplay = int.MinValue;
+            while (remaining > 0f)
+            {
+                int display = Mathf.CeilToInt(remaining);
+                if (display != lastDisplay)
+                {
+                    _hud?.ShowWaveCountdown(display);
+                    lastDisplay = display;
+                }
+
+                remaining -= Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            _hud?.ShowWaveCountdown(0);
+            yield return null;
+            _hud?.HideWaveCountdown();
+            _waveCountdownRoutine = null;
+        }
+
+        private void StopWaveCountdownRoutine()
+        {
+            if (_waveCountdownRoutine != null)
+            {
+                StopCoroutine(_waveCountdownRoutine);
+                _waveCountdownRoutine = null;
+            }
         }
 
         private void OnAlienSpawned(AlienBase alien)
@@ -438,8 +725,18 @@ namespace DontLetThemIn.Core
             }
 
             _killCount++;
-            _totalScrapEarned += alien.Data.ScrapReward;
-            _scrapManager.Add(alien.Data.ScrapReward);
+            AwardScrap(alien.Data.ScrapReward);
+        }
+
+        private void AwardScrap(int amount)
+        {
+            if (amount <= 0 || _scrapManager == null)
+            {
+                return;
+            }
+
+            _totalScrapEarned += amount;
+            _scrapManager.Add(amount);
         }
 
         private void OnAlienReachedSafeRoom(AlienBase alien)
@@ -470,6 +767,9 @@ namespace DontLetThemIn.Core
                 return;
             }
 
+            StopWaveCountdownRoutine();
+            _hud?.HideWaveCountdown();
+
             _isTransitioningFloor = true;
             _defensePlacement?.SetPlacementEnabled(false);
             _stateMachine.ForceState(GameState.FloorClear);
@@ -496,19 +796,22 @@ namespace DontLetThemIn.Core
             }
 
             _stateMachine.ForceState(GameState.DraftPick);
-            bool selected = false;
+            _pendingDraftSelectionIndex = -1;
 
+            _currentDraftOffers = _draftSystem.DrawOffers(_runAvailableDefenses, 3);
             _hud.ShowDraftPick(
-                _ =>
-                {
-                    selected = true;
-                },
+                _currentDraftOffers,
+                selectedIndex => _pendingDraftSelectionIndex = selectedIndex,
                 autoSelectDraftForAutomation);
 
-            while (!selected)
+            while (_pendingDraftSelectionIndex < 0)
             {
                 yield return null;
             }
+
+            ApplyDraftSelection(_pendingDraftSelectionIndex);
+            _pendingDraftSelectionIndex = -1;
+            _currentDraftOffers = Array.Empty<DraftOffer>();
 
             _hud.HideDraftPick();
             _stateMachine.ForceState(GameState.Transitioning);
@@ -517,12 +820,30 @@ namespace DontLetThemIn.Core
             _transitionRoutine = null;
         }
 
+        private void ApplyDraftSelection(int selectedIndex)
+        {
+            if (!_draftSystem.ApplySelection(_currentDraftOffers, selectedIndex, _runAvailableDefenses, out DraftOffer selectedOffer))
+            {
+                return;
+            }
+
+            _defensePlacement?.SetTrapResetEnabled(_draftSystem.TrapResetEnabled);
+
+            if (selectedOffer != null)
+            {
+                _hud?.SetStatus($"Drafted: {selectedOffer.Title}");
+            }
+        }
+
         private void HandleFloorLost()
         {
             if (_isTransitioningFloor || _stateMachine.CurrentState == GameState.RunEnd)
             {
                 return;
             }
+
+            StopWaveCountdownRoutine();
+            _hud?.HideWaveCountdown();
 
             _isTransitioningFloor = true;
             _defensePlacement?.SetPlacementEnabled(false);
@@ -537,8 +858,8 @@ namespace DontLetThemIn.Core
                 return;
             }
 
-            int penalizedStartingScrap = _runProgression.CalculateStartingScrap(startingScrap);
-            _scrapManager.SetCurrentScrap(penalizedStartingScrap);
+            _currentFloorStartingScrap = CalculateStartingScrapForCurrentFloor();
+            _scrapManager.SetCurrentScrap(_currentFloorStartingScrap);
             _hud.SetStatus("Floor Lost - Retreating Upstairs");
 
             StopTransitionRoutine();
@@ -568,13 +889,53 @@ namespace DontLetThemIn.Core
             _stateMachine.ForceState(GameState.RunEnd);
             _hud?.HidePrepCountdown();
             _hud?.HideDraftPick();
+            _hud?.HideWaveCountdown();
             _hud?.SetStatus(survived ? "YOU SURVIVED!" : "THEY GOT IN.");
-            _hud?.ShowRunEndOverlay(
+            RunEndStats stats = RunStatsCalculator.Build(
                 survived,
                 _runProgression?.FloorsCleared ?? 0,
                 _killCount,
                 _totalScrapEarned,
+                _defenseKillCounts);
+            _hud?.ShowRunEndOverlay(
+                stats.Survived,
+                stats.FloorsCleared,
+                stats.TotalKills,
+                stats.TotalScrapEarned,
+                stats.BestDefenseSummary,
                 ReturnToMainMenu);
+        }
+
+        private string ResolveBestDefenseName()
+        {
+            return RunStatsCalculator.ResolveBestDefenseSummary(_defenseKillCounts);
+        }
+
+        private void OnDefensePlaced(DefenseInstance defense)
+        {
+            if (defense == null)
+            {
+                return;
+            }
+
+            defense.SetTrapResetEnabled(_draftSystem != null && _draftSystem.TrapResetEnabled);
+            defense.AlienEliminated -= OnDefenseAlienEliminated;
+            defense.AlienEliminated += OnDefenseAlienEliminated;
+        }
+
+        private void OnDefenseAlienEliminated(DefenseInstance defense, AlienBase _)
+        {
+            if (defense?.Data == null || string.IsNullOrWhiteSpace(defense.Data.DefenseName))
+            {
+                return;
+            }
+
+            if (!_defenseKillCounts.TryGetValue(defense.Data.DefenseName, out int current))
+            {
+                current = 0;
+            }
+
+            _defenseKillCounts[defense.Data.DefenseName] = current + 1;
         }
 
         private void ReturnToMainMenu()
@@ -716,6 +1077,7 @@ namespace DontLetThemIn.Core
         {
             StopPrepRoutine();
             StopTransitionRoutine();
+            StopWaveCountdownRoutine();
         }
 
         private void StopPrepRoutine()
