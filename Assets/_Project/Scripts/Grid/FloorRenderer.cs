@@ -10,6 +10,25 @@ namespace DontLetThemIn.Grid
 
         public void Initialize(NodeGraph graph)
         {
+            if (_graph != null)
+            {
+                _graph.NodeChanged -= OnNodeChanged;
+            }
+
+            _renderers.Clear();
+            for (int i = transform.childCount - 1; i >= 0; i--)
+            {
+                Transform child = transform.GetChild(i);
+                if (Application.isPlaying)
+                {
+                    Destroy(child.gameObject);
+                }
+                else
+                {
+                    DestroyImmediate(child.gameObject);
+                }
+            }
+
             _graph = graph;
             _graph.NodeChanged += OnNodeChanged;
 

@@ -2,8 +2,13 @@ namespace DontLetThemIn.Core
 {
     public enum GameState
     {
-        Running,
-        Victory,
-        GameOver
+        PrepPhase,
+        WaveActive,
+        WaveClear,
+        FloorClear,
+        DraftPick,
+        FloorLost,
+        Transitioning,
+        RunEnd
     }
 }

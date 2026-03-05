@@ -67,24 +67,15 @@ namespace DontLetThemIn.Utils.Editor
             EnsureFolder("Assets/_Project/ScriptableObjects/DefenseData");
             EnsureFolder("Assets/_Project/ScriptableObjects/WaveConfigs");
 
-            FloorLayout layout = AssetDatabase.LoadAssetAtPath<FloorLayout>("Assets/_Project/ScriptableObjects/FloorLayouts/GroundFloor.asset");
-            FloorLayout layoutTemplate = Stage1DataFactory.CreateGroundFloorLayout();
-            if (layout == null)
-            {
-                layout = layoutTemplate;
-                AssetDatabase.CreateAsset(layout, "Assets/_Project/ScriptableObjects/FloorLayouts/GroundFloor.asset");
-            }
-            else
-            {
-                layout.GridWidth = layoutTemplate.GridWidth;
-                layout.GridHeight = layoutTemplate.GridHeight;
-                layout.SafeRoomPosition = layoutTemplate.SafeRoomPosition;
-                layout.Nodes = new List<FloorNodeDefinition>(layoutTemplate.Nodes);
-                layout.EntryPoints = new List<Vector2Int>(layoutTemplate.EntryPoints);
-                layout.StructuralWeakPoints = new List<Vector2Int>(layoutTemplate.StructuralWeakPoints);
-                EditorUtility.SetDirty(layout);
-                Object.DestroyImmediate(layoutTemplate);
-            }
+            EnsureFloorLayoutAsset(
+                "Assets/_Project/ScriptableObjects/FloorLayouts/GroundFloor.asset",
+                Stage1DataFactory.CreateGroundFloorLayout);
+            EnsureFloorLayoutAsset(
+                "Assets/_Project/ScriptableObjects/FloorLayouts/UpperFloor.asset",
+                Stage1DataFactory.CreateUpperFloorLayout);
+            EnsureFloorLayoutAsset(
+                "Assets/_Project/ScriptableObjects/FloorLayouts/Attic.asset",
+                Stage1DataFactory.CreateAtticLayout);
 
             EnsureAlienAsset("Assets/_Project/ScriptableObjects/AlienData/Grey.asset", Stage1DataFactory.CreateGreyAlien);
             EnsureAlienAsset("Assets/_Project/ScriptableObjects/AlienData/Stalker.asset", Stage1DataFactory.CreateStalkerAlien);
@@ -228,6 +219,14 @@ namespace DontLetThemIn.Utils.Editor
                         EntryPointSelection = EntryPointSelection.Random
                     }
                 });
+
+            WaveConfig[] upperTemplates = Stage1DataFactory.CreateUpperFloorWaveSet(grey, stalker, techUnit);
+            EnsureWaveAssetSet("Upper", upperTemplates);
+            DestroyTemplates(upperTemplates);
+
+            WaveConfig[] atticTemplates = Stage1DataFactory.CreateAtticWaveSet(grey, stalker, techUnit);
+            EnsureWaveAssetSet("Attic", atticTemplates);
+            DestroyTemplates(atticTemplates);
         }
 
         private static void EnsurePrefabs()
@@ -342,7 +341,7 @@ namespace DontLetThemIn.Utils.Editor
             HUDController hud = canvas.gameObject.AddComponent<HUDController>();
 
             Text scrapText = CreateText("ScrapText", canvas.transform, font, "Scrap: 0", 28, TextAnchor.UpperLeft, new Vector2(20f, -20f), new Vector2(360f, 60f));
-            Text waveText = CreateText("WaveText", canvas.transform, font, "Wave: 0/3", 28, TextAnchor.UpperCenter, new Vector2(0f, -20f), new Vector2(360f, 60f));
+            Text waveText = CreateText("WaveText", canvas.transform, font, "Wave: 0/5", 28, TextAnchor.UpperCenter, new Vector2(0f, -20f), new Vector2(360f, 60f));
             Text integrityText = CreateText("IntegrityText", canvas.transform, font, "Integrity: 10", 28, TextAnchor.UpperRight, new Vector2(-20f, -20f), new Vector2(360f, 60f));
             Text statusText = CreateText("StatusText", canvas.transform, font, string.Empty, 24, TextAnchor.MiddleCenter, new Vector2(0f, -85f), new Vector2(800f, 60f));
 
@@ -377,7 +376,13 @@ namespace DontLetThemIn.Utils.Editor
         {
             SerializedObject managerObject = new(manager);
 
-            FloorLayout floorLayout = AssetDatabase.LoadAssetAtPath<FloorLayout>("Assets/_Project/ScriptableObjects/FloorLayouts/GroundFloor.asset");
+            FloorLayout[] layouts =
+            {
+                AssetDatabase.LoadAssetAtPath<FloorLayout>("Assets/_Project/ScriptableObjects/FloorLayouts/GroundFloor.asset"),
+                AssetDatabase.LoadAssetAtPath<FloorLayout>("Assets/_Project/ScriptableObjects/FloorLayouts/UpperFloor.asset"),
+                AssetDatabase.LoadAssetAtPath<FloorLayout>("Assets/_Project/ScriptableObjects/FloorLayouts/Attic.asset")
+            };
+
             string[] defensePaths =
             {
                 "Assets/_Project/ScriptableObjects/DefenseData/PaintCanPendulum.asset",
@@ -392,7 +397,24 @@ namespace DontLetThemIn.Utils.Editor
             AlienData techUnit = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/TechUnit.asset");
             AlienData overlord = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/Overlord.asset");
 
-            managerObject.FindProperty("floorLayout").objectReferenceValue = floorLayout;
+            SerializedProperty floorLayoutsProperty = managerObject.FindProperty("floorLayouts");
+            floorLayoutsProperty.arraySize = layouts.Length;
+            for (int i = 0; i < layouts.Length; i++)
+            {
+                floorLayoutsProperty.GetArrayElementAtIndex(i).objectReferenceValue = layouts[i];
+            }
+
+            SerializedProperty floorNamesProperty = managerObject.FindProperty("floorDisplayNames");
+            if (floorNamesProperty != null)
+            {
+                string[] floorNames = { "Ground Floor", "Upper Floor", "Attic" };
+                floorNamesProperty.arraySize = floorNames.Length;
+                for (int i = 0; i < floorNames.Length; i++)
+                {
+                    floorNamesProperty.GetArrayElementAtIndex(i).stringValue = floorNames[i];
+                }
+            }
+
             managerObject.FindProperty("defaultDefense").objectReferenceValue = defaultDefense;
             SerializedProperty availableDefenses = managerObject.FindProperty("availableDefenses");
             availableDefenses.arraySize = defensePaths.Length;
@@ -406,7 +428,7 @@ namespace DontLetThemIn.Utils.Editor
             managerObject.FindProperty("techUnitAlien").objectReferenceValue = techUnit;
             managerObject.FindProperty("overlordAlien").objectReferenceValue = overlord;
 
-            string[] wavePaths =
+            string[] groundWavePaths =
             {
                 "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_01.asset",
                 "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_02.asset",
@@ -415,16 +437,46 @@ namespace DontLetThemIn.Utils.Editor
                 "Assets/_Project/ScriptableObjects/WaveConfigs/Wave_05.asset"
             };
 
-            SerializedProperty waveArray = managerObject.FindProperty("waveConfigs");
-            waveArray.arraySize = wavePaths.Length;
-            for (int i = 0; i < wavePaths.Length; i++)
+            string[] upperWavePaths =
             {
-                WaveConfig wave = AssetDatabase.LoadAssetAtPath<WaveConfig>(wavePaths[i]);
-                waveArray.GetArrayElementAtIndex(i).objectReferenceValue = wave;
-            }
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Upper_Wave_01.asset",
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Upper_Wave_02.asset",
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Upper_Wave_03.asset",
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Upper_Wave_04.asset",
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Upper_Wave_05.asset"
+            };
+
+            string[] atticWavePaths =
+            {
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Attic_Wave_01.asset",
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Attic_Wave_02.asset",
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Attic_Wave_03.asset",
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Attic_Wave_04.asset",
+                "Assets/_Project/ScriptableObjects/WaveConfigs/Attic_Wave_05.asset"
+            };
+
+            AssignWaveArray(managerObject, "groundWaveConfigs", groundWavePaths);
+            AssignWaveArray(managerObject, "upperWaveConfigs", upperWavePaths);
+            AssignWaveArray(managerObject, "atticWaveConfigs", atticWavePaths);
 
             managerObject.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(manager);
+        }
+
+        private static void AssignWaveArray(SerializedObject managerObject, string propertyName, IReadOnlyList<string> wavePaths)
+        {
+            SerializedProperty waveArray = managerObject.FindProperty(propertyName);
+            if (waveArray == null || wavePaths == null)
+            {
+                return;
+            }
+
+            waveArray.arraySize = wavePaths.Count;
+            for (int i = 0; i < wavePaths.Count; i++)
+            {
+                waveArray.GetArrayElementAtIndex(i).objectReferenceValue =
+                    AssetDatabase.LoadAssetAtPath<WaveConfig>(wavePaths[i]);
+            }
         }
 
         private static void AssignHudReferences(HUDController hud, Text scrap, Text wave, Text integrity, Text status, Button restart)
@@ -681,6 +733,96 @@ namespace DontLetThemIn.Utils.Editor
             wave.PostWaveDelay = postWaveDelay;
             wave.Spawns = spawns;
             EditorUtility.SetDirty(wave);
+        }
+
+        private static void EnsureFloorLayoutAsset(string assetPath, System.Func<FloorLayout> factory)
+        {
+            FloorLayout layout = AssetDatabase.LoadAssetAtPath<FloorLayout>(assetPath);
+            FloorLayout template = factory();
+            if (layout == null)
+            {
+                layout = template;
+                AssetDatabase.CreateAsset(layout, assetPath);
+                return;
+            }
+
+            layout.GridWidth = template.GridWidth;
+            layout.GridHeight = template.GridHeight;
+            layout.SafeRoomPosition = template.SafeRoomPosition;
+            layout.Nodes = new List<FloorNodeDefinition>(template.Nodes);
+            layout.EntryPoints = new List<Vector2Int>(template.EntryPoints);
+            layout.StructuralWeakPoints = new List<Vector2Int>(template.StructuralWeakPoints);
+            EditorUtility.SetDirty(layout);
+            Object.DestroyImmediate(template);
+        }
+
+        private static void EnsureWaveAssetSet(string prefix, IReadOnlyList<WaveConfig> templates)
+        {
+            if (templates == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < templates.Count; i++)
+            {
+                WaveConfig template = templates[i];
+                if (template == null)
+                {
+                    continue;
+                }
+
+                string path = $"Assets/_Project/ScriptableObjects/WaveConfigs/{prefix}_Wave_{i + 1:00}.asset";
+                EnsureWaveAsset(
+                    path,
+                    template.WaveName,
+                    template.PreWaveDelay,
+                    template.PostWaveDelay,
+                    CloneSpawnDirectives(template.Spawns));
+            }
+        }
+
+        private static List<WaveSpawnDirective> CloneSpawnDirectives(IReadOnlyList<WaveSpawnDirective> source)
+        {
+            List<WaveSpawnDirective> clone = new();
+            if (source == null)
+            {
+                return clone;
+            }
+
+            foreach (WaveSpawnDirective spawn in source)
+            {
+                if (spawn == null)
+                {
+                    continue;
+                }
+
+                clone.Add(new WaveSpawnDirective
+                {
+                    Alien = spawn.Alien,
+                    Count = spawn.Count,
+                    SpawnDelay = spawn.SpawnDelay,
+                    EntryPointSelection = spawn.EntryPointSelection,
+                    EntryPointIndex = spawn.EntryPointIndex
+                });
+            }
+
+            return clone;
+        }
+
+        private static void DestroyTemplates(IEnumerable<WaveConfig> templates)
+        {
+            if (templates == null)
+            {
+                return;
+            }
+
+            foreach (WaveConfig template in templates)
+            {
+                if (template != null)
+                {
+                    Object.DestroyImmediate(template);
+                }
+            }
         }
 
         private static void CopyAlienData(AlienData source, AlienData target)

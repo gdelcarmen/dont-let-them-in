@@ -19,6 +19,7 @@ namespace DontLetThemIn.Waves
         private AlienData _defaultAlien;
         private AlienData _bossAlien;
         private int _nextRoundRobinEntryIndex;
+        private Coroutine _waveRoutine;
 
         public event Action<int, int> WaveChanged;
         public event Action<int, int, WaveConfig> WaveStarted;
@@ -38,6 +39,8 @@ namespace DontLetThemIn.Waves
 
         public int TotalSpawned { get; private set; }
 
+        public bool IsRunning => _waveRoutine != null;
+
         public void Initialize(
             NodeGraph graph,
             IEnumerable<GridNode> entryPoints,
@@ -55,7 +58,35 @@ namespace DontLetThemIn.Waves
 
         public void StartWaves()
         {
-            StartCoroutine(RunWaves());
+            if (_waveRoutine != null)
+            {
+                StopCoroutine(_waveRoutine);
+            }
+
+            _waveRoutine = StartCoroutine(RunWaves());
+        }
+
+        public void AbortCurrentWavesAndAliens()
+        {
+            if (_waveRoutine != null)
+            {
+                StopCoroutine(_waveRoutine);
+                _waveRoutine = null;
+            }
+
+            AlienBase[] aliens = _activeAliens.ToArray();
+            _activeAliens.Clear();
+            foreach (AlienBase alien in aliens)
+            {
+                if (alien == null)
+                {
+                    continue;
+                }
+
+                alien.Died -= OnAlienDied;
+                alien.ReachedSafeRoom -= OnAlienReachedSafeRoom;
+                Destroy(alien.gameObject);
+            }
         }
 
         public void SetBossAlien(AlienData bossAlien)
@@ -72,6 +103,7 @@ namespace DontLetThemIn.Waves
             {
                 HasCompletedAllWaves = true;
                 AllWavesCompleted?.Invoke();
+                _waveRoutine = null;
                 yield break;
             }
 
@@ -128,6 +160,7 @@ namespace DontLetThemIn.Waves
 
             HasCompletedAllWaves = true;
             AllWavesCompleted?.Invoke();
+            _waveRoutine = null;
         }
 
         private void SpawnAlien(WaveSpawnDirective directive)

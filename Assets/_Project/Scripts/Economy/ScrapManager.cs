@@ -40,5 +40,11 @@ namespace DontLetThemIn.Economy
             CurrentScrap += amount;
             ScrapChanged?.Invoke(CurrentScrap);
         }
+
+        public void SetCurrentScrap(int amount)
+        {
+            CurrentScrap = Math.Max(0, amount);
+            ScrapChanged?.Invoke(CurrentScrap);
+        }
     }
 }

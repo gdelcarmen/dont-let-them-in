@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-03-05T12:58:00Z",
-  "pipeline_stage": "stage4_hazards_special_systems",
-  "action": "implement_hazards_alien_specials_boss_mechanics_and_tests",
+  "timestamp": "2026-03-05T13:38:50Z",
+  "pipeline_stage": "stage5_floor_progression_multi_floor_system",
+  "action": "implement_three_floor_progression_prep_phase_run_state_machine_and_tests",
   "tool_used": "unity_mcp",
   "outcome": "success",
   "retry_count": 0,
   "human_intervention_required": false,
   "intervention_reason": "",
-  "notes": "Implemented Stage 4 systems: power surges for overused smart tech, structural weak points with breach + barricade flow, collateral trap zones damaging aliens/defenses, Tech Unit hacking channels with defense disable windows, Stalker invisibility/reveal/sabotage logic, and Overlord wave-5 boss behavior (visibility pulse, speed buff, boss bar, bonus scrap). Added Stage 4 test coverage in new EditMode and PlayMode suites. Regenerated project scaffolding from editor menu to wire Camera Network, Wave_04/Wave_05, and Overlord scene references/assets. Verification: 0 compilation errors, EditMode 15/15 passing, PlayMode 9/9 passing, GameScene Play Mode reached Wave 5/5 with Overlord spawn detected, HUD counters updating, weak-point breach detected via node color transition, and runtime console error count 0."
+  "notes": "Implemented Stage 5 multi-floor run flow on top of Stages 1-4: rebuilt GameManager with a full floor progression state machine (PrepPhase/WaveActive/WaveClear/FloorClear/DraftPick/FloorLost/Transitioning/RunEnd), 3-floor layout/wave support, floor clear + draft transition flow, floor-loss retreat flow with scrap penalty (60/40/20), and run-end victory/defeat overlay statistics. Updated editor scaffold generation to create Ground/Upper/Attic floor assets and wave sets, and wire new GameManager serialized fields. Added Stage 5 EditMode/PlayMode tests for floor transitions, penalties, attic loss/victory conditions, and run-end flow. Verification: 0 compilation errors, EditMode 19/19 passing, PlayMode 12/12 passing, GameScene play sanity check confirmed active wave spawning (TotalSpawned=5 by ~20s), floor graph instantiated, Safe Room integrity updates during attacks, and runtime console error count 0."
 }

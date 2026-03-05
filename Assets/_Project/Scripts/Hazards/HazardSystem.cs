@@ -49,6 +49,7 @@ namespace DontLetThemIn.Hazards
         private Coroutine _powerSurgeRoutine;
         private int _pendingUndetectedStalkerSabotage;
         private bool _bossWaveActive;
+        private bool _bossEnabled = true;
         private OverlordAlien _activeBoss;
 
         private Image _surgeOverlay;
@@ -69,14 +70,41 @@ namespace DontLetThemIn.Hazards
             WaveSpawner waveSpawner,
             DefensePlacementController placement,
             HUDController hud,
-            AlienData overlordData)
+            AlienData overlordData,
+            bool enableBossWaves = true)
         {
+            if (_placement != null)
+            {
+                _placement.DefensePlaced -= OnDefensePlaced;
+            }
+
+            if (_waveSpawner != null)
+            {
+                _waveSpawner.WaveStarted -= OnWaveStarted;
+                _waveSpawner.WaveCompleted -= OnWaveCompleted;
+                _waveSpawner.AlienSpawned -= OnAlienSpawned;
+                _waveSpawner.AlienKilled -= OnAlienKilled;
+                _waveSpawner.AlienReachedSafeRoom -= OnAlienReachedSafeRoom;
+            }
+
+            foreach (HackChannel channel in _hackChannels.Values.ToArray())
+            {
+                EndHackChannel(channel, completed: false);
+            }
+
+            _hackChannels.Clear();
+            ClearCollateralZones();
+            _pendingUndetectedStalkerSabotage = 0;
+            _bossWaveActive = false;
+            _activeBoss = null;
+
             _graph = graph;
             _scrapManager = scrapManager;
             _waveSpawner = waveSpawner;
             _placement = placement;
             _hud = hud;
             _overlordData = overlordData;
+            _bossEnabled = enableBossWaves;
 
             _placement.SetHazardSystem(this);
             _placement.DefensePlaced += OnDefensePlaced;
@@ -85,7 +113,7 @@ namespace DontLetThemIn.Hazards
                 OnDefensePlaced(defense);
             }
 
-            _waveSpawner.SetBossAlien(_overlordData);
+            _waveSpawner.SetBossAlien(_bossEnabled ? _overlordData : null);
             _waveSpawner.WaveStarted += OnWaveStarted;
             _waveSpawner.WaveCompleted += OnWaveCompleted;
             _waveSpawner.AlienSpawned += OnAlienSpawned;
@@ -110,6 +138,14 @@ namespace DontLetThemIn.Hazards
                 _waveSpawner.AlienKilled -= OnAlienKilled;
                 _waveSpawner.AlienReachedSafeRoom -= OnAlienReachedSafeRoom;
             }
+
+            foreach (HackChannel channel in _hackChannels.Values.ToArray())
+            {
+                EndHackChannel(channel, completed: false);
+            }
+
+            _hackChannels.Clear();
+            ClearCollateralZones();
         }
 
         private void Update()
@@ -565,6 +601,13 @@ namespace DontLetThemIn.Hazards
                 ApplyPendingStalkerSabotage();
             }
 
+            if (!_bossEnabled)
+            {
+                _bossWaveActive = false;
+                _activeBoss = null;
+                return;
+            }
+
             _bossWaveActive = wave % 5 == 0;
             if (!_bossWaveActive)
             {
@@ -575,6 +618,11 @@ namespace DontLetThemIn.Hazards
 
         private void OnWaveCompleted(int wave, int _, WaveConfig __)
         {
+            if (!_bossEnabled)
+            {
+                return;
+            }
+
             if (wave % 5 == 0)
             {
                 _bossWaveActive = false;
@@ -595,13 +643,13 @@ namespace DontLetThemIn.Hazards
                 stalker.RefreshVisibility(false);
             }
 
-            if (alien is OverlordAlien overlord)
+            if (_bossEnabled && alien is OverlordAlien overlord)
             {
                 _activeBoss = overlord;
                 _bossWaveActive = true;
                 TriggerOverlordWaveAbility();
             }
-            else if (_bossWaveActive && _activeBoss != null)
+            else if (_bossEnabled && _bossWaveActive && _activeBoss != null)
             {
                 alien.SetSpeedMultiplier(bossSpeedBuffMultiplier);
             }
@@ -756,6 +804,28 @@ namespace DontLetThemIn.Hazards
             _zones.Add(zone);
         }
 
+        private void ClearCollateralZones()
+        {
+            for (int i = _zones.Count - 1; i >= 0; i--)
+            {
+                CollateralZone zone = _zones[i];
+                if (zone?.Overlays == null)
+                {
+                    continue;
+                }
+
+                foreach (GameObject overlay in zone.Overlays)
+                {
+                    if (overlay != null)
+                    {
+                        Destroy(overlay);
+                    }
+                }
+            }
+
+            _zones.Clear();
+        }
+
         private List<DefenseInstance> GetActiveSmartTechDefenses()
         {
             return _placement.Defenses
@@ -773,6 +843,11 @@ namespace DontLetThemIn.Hazards
 
         private void EnsureHazardUi()
         {
+            if (_surgeOverlay != null && _surgeWarningText != null && _bossBarRoot != null)
+            {
+                return;
+            }
+
             Canvas canvas = Object.FindFirstObjectByType<Canvas>();
             if (canvas == null)
             {

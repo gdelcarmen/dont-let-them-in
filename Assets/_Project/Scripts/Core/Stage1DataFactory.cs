@@ -48,6 +48,69 @@ namespace DontLetThemIn.Core
             return layout;
         }
 
+        public static FloorLayout CreateUpperFloorLayout()
+        {
+            FloorLayout layout = ScriptableObject.CreateInstance<FloorLayout>();
+            layout.name = "UpperFloor_Runtime";
+            layout.GridWidth = 12;
+            layout.GridHeight = 8;
+            layout.SafeRoomPosition = new Vector2Int(9, 6);
+
+            AddOpenRect(layout, 1, 1, 10, 6, NodeVisualType.Room);
+            AddHallway(layout, new Vector2Int(5, 1), new Vector2Int(5, 6));
+            AddHallway(layout, new Vector2Int(2, 3), new Vector2Int(9, 3));
+            AddBlockedNode(layout, new Vector2Int(4, 5));
+            AddBlockedNode(layout, new Vector2Int(6, 2));
+            AddBlockedNode(layout, new Vector2Int(8, 4));
+
+            layout.EntryPoints = new List<Vector2Int>
+            {
+                new(1, 5),
+                new(10, 5),
+                new(5, 1)
+            };
+
+            layout.StructuralWeakPoints = new List<Vector2Int>
+            {
+                new(2, 6),
+                new(10, 4),
+                new(5, 6)
+            };
+
+            return layout;
+        }
+
+        public static FloorLayout CreateAtticLayout()
+        {
+            FloorLayout layout = ScriptableObject.CreateInstance<FloorLayout>();
+            layout.name = "Attic_Runtime";
+            layout.GridWidth = 10;
+            layout.GridHeight = 7;
+            layout.SafeRoomPosition = new Vector2Int(7, 5);
+
+            AddOpenRect(layout, 1, 1, 8, 5, NodeVisualType.Room);
+            AddHallway(layout, new Vector2Int(1, 3), new Vector2Int(8, 3));
+            AddBlockedNode(layout, new Vector2Int(4, 2));
+            AddBlockedNode(layout, new Vector2Int(4, 3));
+            AddBlockedNode(layout, new Vector2Int(6, 4));
+
+            layout.EntryPoints = new List<Vector2Int>
+            {
+                new(5, 1),
+                new(1, 4),
+                new(8, 4)
+            };
+
+            layout.StructuralWeakPoints = new List<Vector2Int>
+            {
+                new(2, 1),
+                new(7, 1),
+                new(4, 5)
+            };
+
+            return layout;
+        }
+
         public static DefenseData CreateDefaultDefense()
         {
             return CreatePaintCanPendulumDefense();
@@ -238,129 +301,221 @@ namespace DontLetThemIn.Core
             AlienData stalkerAlien,
             AlienData techUnitAlien)
         {
+            return CreateGroundFloorWaveSet(greyAlien, stalkerAlien, techUnitAlien);
+        }
+
+        public static WaveConfig[] CreateGroundFloorWaveSet(
+            AlienData greyAlien,
+            AlienData stalkerAlien,
+            AlienData techUnitAlien)
+        {
             AlienData grey = greyAlien != null ? greyAlien : CreateGreyAlien();
             AlienData stalker = stalkerAlien != null ? stalkerAlien : grey;
-            AlienData techUnit = techUnitAlien != null ? techUnitAlien : stalker;
+            AlienData tech = techUnitAlien != null ? techUnitAlien : stalker;
 
-            WaveConfig wave1 = ScriptableObject.CreateInstance<WaveConfig>();
-            wave1.name = "Wave1_Runtime";
-            wave1.WaveName = "Wave 1";
-            wave1.PreWaveDelay = 0.25f;
-            wave1.PostWaveDelay = 1.1f;
-            wave1.Spawns = new List<WaveSpawnDirective>
+            return new[]
             {
-                new()
+                CreateWave("Wave 1", 0.25f, 1.1f, new List<WaveSpawnDirective>
                 {
-                    Alien = grey,
-                    Count = 5,
-                    SpawnDelay = 0.8f,
-                    EntryPointSelection = EntryPointSelection.Fixed,
-                    EntryPointIndex = 0
-                }
+                    BuildDirective(grey, 5, 0.8f, EntryPointSelection.Fixed, 0)
+                }),
+                CreateWave("Wave 2", 0.35f, 1.2f, new List<WaveSpawnDirective>
+                {
+                    BuildDirective(grey, 4, 0.55f, EntryPointSelection.RoundRobin),
+                    BuildDirective(stalker, 3, 0.65f, EntryPointSelection.RoundRobin)
+                }),
+                CreateWave("Wave 3", 0.45f, 0.5f, new List<WaveSpawnDirective>
+                {
+                    BuildDirective(stalker, 4, 0.55f, EntryPointSelection.Random),
+                    BuildDirective(tech, 2, 0.9f, EntryPointSelection.Fixed, 2)
+                }),
+                CreateWave("Wave 4", 0.5f, 0.4f, new List<WaveSpawnDirective>
+                {
+                    BuildDirective(grey, 5, 0.45f, EntryPointSelection.RoundRobin),
+                    BuildDirective(stalker, 4, 0.55f, EntryPointSelection.Random),
+                    BuildDirective(tech, 2, 0.7f, EntryPointSelection.Fixed, 1)
+                }),
+                CreateWave("Wave 5", 0.6f, 0.4f, new List<WaveSpawnDirective>
+                {
+                    BuildDirective(stalker, 5, 0.42f, EntryPointSelection.RoundRobin),
+                    BuildDirective(tech, 3, 0.62f, EntryPointSelection.Random)
+                })
             };
+        }
 
-            WaveConfig wave2 = ScriptableObject.CreateInstance<WaveConfig>();
-            wave2.name = "Wave2_Runtime";
-            wave2.WaveName = "Wave 2";
-            wave2.PreWaveDelay = 0.35f;
-            wave2.PostWaveDelay = 1.2f;
-            wave2.Spawns = new List<WaveSpawnDirective>
+        public static WaveConfig[] CreateUpperFloorWaveSet(
+            AlienData greyAlien,
+            AlienData stalkerAlien,
+            AlienData techUnitAlien)
+        {
+            AlienData grey = greyAlien != null ? greyAlien : CreateGreyAlien();
+            AlienData stalker = stalkerAlien != null ? stalkerAlien : grey;
+            AlienData tech = techUnitAlien != null ? techUnitAlien : stalker;
+
+            return new[]
             {
-                new()
+                CreateWave("Upper Wave 1", 0.35f, 0.9f, new List<WaveSpawnDirective>
                 {
-                    Alien = grey,
-                    Count = 4,
-                    SpawnDelay = 0.55f,
-                    EntryPointSelection = EntryPointSelection.RoundRobin
-                },
-                new()
+                    BuildDirective(grey, 3, 0.45f, EntryPointSelection.RoundRobin),
+                    BuildDirective(stalker, 3, 0.45f, EntryPointSelection.RoundRobin)
+                }),
+                CreateWave("Upper Wave 2", 0.4f, 0.8f, new List<WaveSpawnDirective>
                 {
-                    Alien = stalker,
-                    Count = 3,
-                    SpawnDelay = 0.65f,
-                    EntryPointSelection = EntryPointSelection.RoundRobin
-                }
+                    BuildDirective(stalker, 5, 0.4f, EntryPointSelection.Random),
+                    BuildDirective(tech, 2, 0.65f, EntryPointSelection.Fixed, 1)
+                }),
+                CreateWave("Upper Wave 3", 0.45f, 0.8f, new List<WaveSpawnDirective>
+                {
+                    BuildDirective(grey, 2, 0.35f, EntryPointSelection.RoundRobin),
+                    BuildDirective(stalker, 4, 0.35f, EntryPointSelection.Random),
+                    BuildDirective(tech, 3, 0.55f, EntryPointSelection.RoundRobin)
+                }),
+                CreateWave("Upper Wave 4", 0.5f, 0.7f, new List<WaveSpawnDirective>
+                {
+                    BuildDirective(stalker, 6, 0.36f, EntryPointSelection.Random),
+                    BuildDirective(tech, 3, 0.52f, EntryPointSelection.RoundRobin)
+                }),
+                CreateWave("Upper Wave 5", 0.55f, 0.7f, new List<WaveSpawnDirective>
+                {
+                    BuildDirective(stalker, 6, 0.32f, EntryPointSelection.RoundRobin),
+                    BuildDirective(tech, 4, 0.45f, EntryPointSelection.Random)
+                })
             };
+        }
 
-            WaveConfig wave3 = ScriptableObject.CreateInstance<WaveConfig>();
-            wave3.name = "Wave3_Runtime";
-            wave3.WaveName = "Wave 3";
-            wave3.PreWaveDelay = 0.45f;
-            wave3.PostWaveDelay = 0.5f;
-            wave3.Spawns = new List<WaveSpawnDirective>
+        public static WaveConfig[] CreateAtticWaveSet(
+            AlienData greyAlien,
+            AlienData stalkerAlien,
+            AlienData techUnitAlien)
+        {
+            AlienData grey = greyAlien != null ? greyAlien : CreateGreyAlien();
+            AlienData stalker = stalkerAlien != null ? stalkerAlien : grey;
+            AlienData tech = techUnitAlien != null ? techUnitAlien : stalker;
+
+            return new[]
             {
-                new()
+                CreateWave("Attic Wave 1", 0.3f, 0.6f, new List<WaveSpawnDirective>
                 {
-                    Alien = stalker,
-                    Count = 4,
-                    SpawnDelay = 0.55f,
-                    EntryPointSelection = EntryPointSelection.Random
-                },
-                new()
+                    BuildDirective(stalker, 4, 0.3f, EntryPointSelection.RoundRobin),
+                    BuildDirective(tech, 2, 0.5f, EntryPointSelection.Random)
+                }),
+                CreateWave("Attic Wave 2", 0.35f, 0.55f, new List<WaveSpawnDirective>
                 {
-                    Alien = techUnit,
-                    Count = 2,
-                    SpawnDelay = 0.9f,
-                    EntryPointSelection = EntryPointSelection.Fixed,
-                    EntryPointIndex = 2
-                }
+                    BuildDirective(stalker, 5, 0.28f, EntryPointSelection.Random),
+                    BuildDirective(tech, 3, 0.45f, EntryPointSelection.RoundRobin)
+                }),
+                CreateWave("Attic Wave 3", 0.4f, 0.5f, new List<WaveSpawnDirective>
+                {
+                    BuildDirective(stalker, 6, 0.26f, EntryPointSelection.RoundRobin),
+                    BuildDirective(tech, 4, 0.4f, EntryPointSelection.Random)
+                }),
+                CreateWave("Attic Wave 4", 0.45f, 0.45f, new List<WaveSpawnDirective>
+                {
+                    BuildDirective(stalker, 6, 0.24f, EntryPointSelection.Random),
+                    BuildDirective(tech, 5, 0.36f, EntryPointSelection.RoundRobin)
+                }),
+                CreateWave("Attic Wave 5", 0.5f, 0.45f, new List<WaveSpawnDirective>
+                {
+                    BuildDirective(stalker, 7, 0.22f, EntryPointSelection.RoundRobin),
+                    BuildDirective(tech, 5, 0.33f, EntryPointSelection.Random)
+                })
             };
+        }
 
-            WaveConfig wave4 = ScriptableObject.CreateInstance<WaveConfig>();
-            wave4.name = "Wave4_Runtime";
-            wave4.WaveName = "Wave 4";
-            wave4.PreWaveDelay = 0.5f;
-            wave4.PostWaveDelay = 0.4f;
-            wave4.Spawns = new List<WaveSpawnDirective>
+        private static WaveConfig CreateWave(
+            string waveName,
+            float preWaveDelay,
+            float postWaveDelay,
+            List<WaveSpawnDirective> directives)
+        {
+            WaveConfig wave = ScriptableObject.CreateInstance<WaveConfig>();
+            wave.name = waveName.Replace(" ", string.Empty) + "_Runtime";
+            wave.WaveName = waveName;
+            wave.PreWaveDelay = preWaveDelay;
+            wave.PostWaveDelay = postWaveDelay;
+            wave.Spawns = directives;
+            return wave;
+        }
+
+        private static WaveSpawnDirective BuildDirective(
+            AlienData alien,
+            int count,
+            float spawnDelay,
+            EntryPointSelection selection,
+            int entryPointIndex = 0)
+        {
+            return new WaveSpawnDirective
             {
-                new()
-                {
-                    Alien = grey,
-                    Count = 5,
-                    SpawnDelay = 0.45f,
-                    EntryPointSelection = EntryPointSelection.RoundRobin
-                },
-                new()
-                {
-                    Alien = stalker,
-                    Count = 4,
-                    SpawnDelay = 0.55f,
-                    EntryPointSelection = EntryPointSelection.Random
-                },
-                new()
-                {
-                    Alien = techUnit,
-                    Count = 2,
-                    SpawnDelay = 0.7f,
-                    EntryPointSelection = EntryPointSelection.Fixed,
-                    EntryPointIndex = 1
-                }
+                Alien = alien,
+                Count = count,
+                SpawnDelay = spawnDelay,
+                EntryPointSelection = selection,
+                EntryPointIndex = entryPointIndex
             };
+        }
 
-            WaveConfig wave5 = ScriptableObject.CreateInstance<WaveConfig>();
-            wave5.name = "Wave5_Runtime";
-            wave5.WaveName = "Wave 5";
-            wave5.PreWaveDelay = 0.6f;
-            wave5.PostWaveDelay = 0.4f;
-            wave5.Spawns = new List<WaveSpawnDirective>
+        private static void AddOpenRect(FloorLayout layout, int xMin, int yMin, int xMax, int yMax, NodeVisualType visualType)
+        {
+            for (int y = yMin; y <= yMax; y++)
             {
-                new()
+                for (int x = xMin; x <= xMax; x++)
                 {
-                    Alien = stalker,
-                    Count = 5,
-                    SpawnDelay = 0.42f,
-                    EntryPointSelection = EntryPointSelection.RoundRobin
-                },
-                new()
-                {
-                    Alien = techUnit,
-                    Count = 3,
-                    SpawnDelay = 0.62f,
-                    EntryPointSelection = EntryPointSelection.Random
+                    layout.Nodes.Add(new FloorNodeDefinition
+                    {
+                        Position = new Vector2Int(x, y),
+                        VisualType = visualType,
+                        InitialState = NodeState.Open
+                    });
                 }
-            };
+            }
+        }
 
-            return new[] { wave1, wave2, wave3, wave4, wave5 };
+        private static void AddHallway(FloorLayout layout, Vector2Int from, Vector2Int to)
+        {
+            if (from.x == to.x)
+            {
+                int min = Mathf.Min(from.y, to.y);
+                int max = Mathf.Max(from.y, to.y);
+                for (int y = min; y <= max; y++)
+                {
+                    ReplaceNode(layout, new Vector2Int(from.x, y), NodeVisualType.Hallway, NodeState.Open);
+                }
+            }
+            else if (from.y == to.y)
+            {
+                int min = Mathf.Min(from.x, to.x);
+                int max = Mathf.Max(from.x, to.x);
+                for (int x = min; x <= max; x++)
+                {
+                    ReplaceNode(layout, new Vector2Int(x, from.y), NodeVisualType.Hallway, NodeState.Open);
+                }
+            }
+        }
+
+        private static void AddBlockedNode(FloorLayout layout, Vector2Int position)
+        {
+            ReplaceNode(layout, position, NodeVisualType.Wall, NodeState.Blocked);
+        }
+
+        private static void ReplaceNode(FloorLayout layout, Vector2Int position, NodeVisualType visualType, NodeState state)
+        {
+            for (int i = 0; i < layout.Nodes.Count; i++)
+            {
+                if (layout.Nodes[i].Position != position)
+                {
+                    continue;
+                }
+
+                layout.Nodes.RemoveAt(i);
+                break;
+            }
+
+            layout.Nodes.Add(new FloorNodeDefinition
+            {
+                Position = position,
+                VisualType = visualType,
+                InitialState = state
+            });
         }
     }
 }

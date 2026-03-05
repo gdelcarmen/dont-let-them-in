@@ -31,6 +31,7 @@ namespace DontLetThemIn.Defenses
         private int _selectedDefenseIndex;
         private float _feedbackUntil;
         private bool _barricadeMode;
+        private bool _placementEnabled = true;
 
         public IReadOnlyList<DefenseInstance> Defenses => _defenses;
         public DefenseData SelectedDefense =>
@@ -39,6 +40,8 @@ namespace DontLetThemIn.Defenses
                 : null;
 
         public event System.Action<DefenseInstance> DefensePlaced;
+
+        public bool IsPlacementEnabled => _placementEnabled;
 
         public void Initialize(
             Camera camera,
@@ -57,10 +60,31 @@ namespace DontLetThemIn.Defenses
             IReadOnlyList<DefenseData> defenses,
             Transform defenseRoot)
         {
+            for (int i = _defenses.Count - 1; i >= 0; i--)
+            {
+                DefenseInstance defense = _defenses[i];
+                if (defense == null)
+                {
+                    continue;
+                }
+
+                if (Application.isPlaying)
+                {
+                    Destroy(defense.gameObject);
+                }
+                else
+                {
+                    DestroyImmediate(defense.gameObject);
+                }
+            }
+
+            _defenses.Clear();
             _camera = camera;
             _graph = graph;
             _scrapManager = scrapManager;
             _defenseRoot = defenseRoot;
+            _barricadeMode = false;
+            _placementEnabled = true;
 
             _availableDefenses.Clear();
             if (defenses != null)
@@ -84,6 +108,15 @@ namespace DontLetThemIn.Defenses
             _hazardSystem = hazardSystem;
         }
 
+        public void SetPlacementEnabled(bool enabled)
+        {
+            _placementEnabled = enabled;
+            if (!enabled && _placementIndicator != null)
+            {
+                _placementIndicator.enabled = false;
+            }
+        }
+
         private void Update()
         {
             if (_camera == null)
@@ -91,7 +124,15 @@ namespace DontLetThemIn.Defenses
                 return;
             }
 
-            UpdatePlacementIndicator();
+            if (_placementEnabled)
+            {
+                UpdatePlacementIndicator();
+            }
+            else if (_placementIndicator != null)
+            {
+                _placementIndicator.enabled = false;
+            }
+
             UpdateFeedbackVisibility();
 
 #if ENABLE_INPUT_SYSTEM
@@ -144,6 +185,11 @@ namespace DontLetThemIn.Defenses
         public bool TryPlaceDefenseOnNode(Vector2Int gridPosition)
         {
             if (_graph == null || _scrapManager == null || _defenseRoot == null)
+            {
+                return false;
+            }
+
+            if (!_placementEnabled)
             {
                 return false;
             }
