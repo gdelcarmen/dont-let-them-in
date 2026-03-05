@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using DontLetThemIn.Aliens;
@@ -17,6 +18,7 @@ namespace DontLetThemIn.Core
         [Header("Run Data")]
         [SerializeField] private FloorLayout floorLayout;
         [SerializeField] private DefenseData defaultDefense;
+        [SerializeField] private DefenseData[] availableDefenses;
         [SerializeField] private AlienData greyAlien;
         [SerializeField] private AlienData stalkerAlien;
         [SerializeField] private AlienData techUnitAlien;
@@ -34,7 +36,10 @@ namespace DontLetThemIn.Core
         private GridDebugDrawer _debugDrawer;
 
         private int _safeRoomIntegrity;
+        private int _killCount;
         private readonly GameStateMachine _stateMachine = new();
+
+        public int KillCount => _killCount;
 
         private void Start()
         {
@@ -72,6 +77,16 @@ namespace DontLetThemIn.Core
             if (defaultDefense == null)
             {
                 defaultDefense = Stage1DataFactory.CreateDefaultDefense();
+            }
+
+            if (availableDefenses == null || availableDefenses.Length == 0)
+            {
+                availableDefenses = Stage1DataFactory.CreateStage3DefenseSet();
+            }
+
+            if (defaultDefense == null && availableDefenses.Length > 0)
+            {
+                defaultDefense = availableDefenses[0];
             }
 
             if (greyAlien == null)
@@ -118,10 +133,11 @@ namespace DontLetThemIn.Core
             ScrapManagerComponent scrapComponent = FindOrCreateComponent<ScrapManagerComponent>("ScrapManager");
             _scrapManager = scrapComponent.Initialize(startingScrap);
             _safeRoomIntegrity = startingSafeRoomIntegrity;
+            _killCount = 0;
             _stateMachine.SetState(GameState.Running);
 
             _defensePlacement = FindOrCreateComponent<DefensePlacementController>("DefensePlacement");
-            _defensePlacement.Initialize(camera, _graph, _scrapManager, defaultDefense, defenseRoot.transform);
+            _defensePlacement.Initialize(camera, _graph, _scrapManager, availableDefenses, defenseRoot.transform);
         }
 
         private void BuildSystems()
@@ -151,6 +167,7 @@ namespace DontLetThemIn.Core
                 greyAlien);
 
             _waveSpawner.WaveChanged += (wave, total) => _hud.SetWave(wave, total);
+            _waveSpawner.AlienSpawned += OnAlienSpawned;
             _waveSpawner.AlienKilled += OnAlienKilled;
             _waveSpawner.AlienReachedSafeRoom += OnAlienReachedSafeRoom;
             _waveSpawner.AllWavesCompleted += () => _hud.SetStatus("All waves cleared. Hold the line...");
@@ -162,11 +179,27 @@ namespace DontLetThemIn.Core
             _waveSpawner.StartWaves();
         }
 
+        private void OnAlienSpawned(AlienBase alien)
+        {
+            if (alien == null)
+            {
+                return;
+            }
+
+            alien.Damaged += OnAlienDamaged;
+        }
+
         private void OnAlienKilled(AlienBase alien)
         {
+            if (alien != null)
+            {
+                alien.Damaged -= OnAlienDamaged;
+            }
+
             if (alien?.Data != null)
             {
                 _scrapManager.Add(alien.Data.ScrapReward);
+                _killCount++;
             }
         }
 
@@ -201,6 +234,48 @@ namespace DontLetThemIn.Core
         private void RestartRun()
         {
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        }
+
+        private void OnAlienDamaged(AlienBase alien, float damage)
+        {
+            if (alien == null || damage <= 0f)
+            {
+                return;
+            }
+
+            Vector3 popupPosition = alien.transform.position + new Vector3(0f, 0.6f, -0.5f);
+            StartCoroutine(ShowDamagePopup(popupPosition, Mathf.RoundToInt(damage)));
+        }
+
+        private static IEnumerator ShowDamagePopup(Vector3 worldPosition, int damage)
+        {
+            GameObject popup = new("DamagePopup");
+            popup.transform.position = worldPosition;
+            TextMesh textMesh = popup.AddComponent<TextMesh>();
+            textMesh.text = damage.ToString();
+            textMesh.color = new Color(1f, 0.36f, 0.32f, 1f);
+            textMesh.characterSize = 0.12f;
+            textMesh.anchor = TextAnchor.MiddleCenter;
+            textMesh.fontSize = 48;
+
+            float elapsed = 0f;
+            const float duration = 0.45f;
+            Vector3 start = worldPosition;
+            Vector3 end = worldPosition + new Vector3(0f, 0.6f, 0f);
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime > 0f ? Time.deltaTime : Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                popup.transform.position = Vector3.Lerp(start, end, t);
+
+                Color color = textMesh.color;
+                color.a = Mathf.Lerp(1f, 0f, t);
+                textMesh.color = color;
+                yield return null;
+            }
+
+            Object.Destroy(popup);
         }
 
         private static T FindOrCreateComponent<T>(string gameObjectName) where T : Component

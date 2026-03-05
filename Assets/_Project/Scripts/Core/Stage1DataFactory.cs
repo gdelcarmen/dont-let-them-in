@@ -49,16 +49,93 @@ namespace DontLetThemIn.Core
 
         public static DefenseData CreateDefaultDefense()
         {
+            return CreatePaintCanPendulumDefense();
+        }
+
+        public static DefenseData[] CreateStage3DefenseSet()
+        {
+            return new[]
+            {
+                CreatePaintCanPendulumDefense(),
+                CreateShotgunMountDefense(),
+                CreateDogDefense(),
+                CreateRoombaDefense()
+            };
+        }
+
+        public static DefenseData CreatePaintCanPendulumDefense()
+        {
             DefenseData data = ScriptableObject.CreateInstance<DefenseData>();
-            data.name = "TripwireTrap_Runtime";
-            data.DefenseName = "Tripwire Trap";
+            data.name = "PaintCanPendulum_Runtime";
+            data.DefenseName = "Paint Can Pendulum";
             data.Category = DefenseCategory.A;
             data.ScrapCost = 20;
-            data.Damage = 10f;
+            data.Damage = 40f;
             data.Range = 0;
-            data.Uses = 8;
-            data.Description = "Blocks a lane and zaps anything forcing through.";
+            data.Uses = 1;
+            data.AttackInterval = 0.01f;
+            data.RequiresHallwayPlacement = true;
+            data.Description = "Single-use hallway trap that slams invading aliens.";
             data.BlocksPath = true;
+            data.DisplayColor = new Color(0.96f, 0.52f, 0.2f, 1f);
+            return data;
+        }
+
+        public static DefenseData CreateShotgunMountDefense()
+        {
+            DefenseData data = ScriptableObject.CreateInstance<DefenseData>();
+            data.name = "ShotgunMount_Runtime";
+            data.DefenseName = "Shotgun Mount";
+            data.Category = DefenseCategory.B;
+            data.ScrapCost = 50;
+            data.Damage = 15f;
+            data.Range = 2;
+            data.Uses = -1;
+            data.AttackInterval = 1.5f;
+            data.Description = "Persistent turret that blasts the nearest alien in range.";
+            data.BlocksPath = false;
+            data.DisplayColor = new Color(0.88f, 0.22f, 0.2f, 1f);
+            return data;
+        }
+
+        public static DefenseData CreateDogDefense()
+        {
+            DefenseData data = ScriptableObject.CreateInstance<DefenseData>();
+            data.name = "Dog_Runtime";
+            data.DefenseName = "Dog";
+            data.Category = DefenseCategory.C;
+            data.ScrapCost = 50;
+            data.Damage = 10f;
+            data.Range = 99;
+            data.Uses = -1;
+            data.AttackInterval = 1f;
+            data.MoveSpeed = 4.5f;
+            data.ContactRadius = 0.35f;
+            data.EffectDuration = 1f;
+            data.KnockbackNodes = 1;
+            data.MaxActivePerFloor = 1;
+            data.Description = "Lunges at nearby aliens, bites, and briefly stuns them.";
+            data.BlocksPath = false;
+            data.DisplayColor = new Color(0.45f, 0.3f, 0.18f, 1f);
+            return data;
+        }
+
+        public static DefenseData CreateRoombaDefense()
+        {
+            DefenseData data = ScriptableObject.CreateInstance<DefenseData>();
+            data.name = "Roomba_Runtime";
+            data.DefenseName = "Roomba";
+            data.Category = DefenseCategory.D;
+            data.ScrapCost = 60;
+            data.Damage = 5f;
+            data.Range = 99;
+            data.Uses = -1;
+            data.AttackInterval = 0.8f;
+            data.MoveSpeed = 2.8f;
+            data.ContactRadius = 0.3f;
+            data.Description = "Patrol bot that bumps aliens off-line and chips away at them.";
+            data.BlocksPath = false;
+            data.DisplayColor = new Color(0.2f, 0.8f, 0.75f, 1f);
             return data;
         }
 

@@ -3,6 +3,8 @@ using DontLetThemIn.Aliens;
 using DontLetThemIn.Economy;
 using DontLetThemIn.Grid;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -11,15 +13,26 @@ namespace DontLetThemIn.Defenses
 {
     public sealed class DefensePlacementController : MonoBehaviour
     {
+        private const float FeedbackDuration = 1.4f;
+
         private readonly List<DefenseInstance> _defenses = new();
+        private readonly List<DefenseData> _availableDefenses = new();
+        private readonly List<Button> _paletteButtons = new();
 
         private Camera _camera;
         private NodeGraph _graph;
         private ScrapManager _scrapManager;
-        private DefenseData _defenseData;
         private Transform _defenseRoot;
+        private SpriteRenderer _placementIndicator;
+        private Text _feedbackText;
+        private int _selectedDefenseIndex;
+        private float _feedbackUntil;
 
         public IReadOnlyList<DefenseInstance> Defenses => _defenses;
+        public DefenseData SelectedDefense =>
+            _selectedDefenseIndex >= 0 && _selectedDefenseIndex < _availableDefenses.Count
+                ? _availableDefenses[_selectedDefenseIndex]
+                : null;
 
         public void Initialize(
             Camera camera,
@@ -28,11 +41,36 @@ namespace DontLetThemIn.Defenses
             DefenseData defenseData,
             Transform defenseRoot)
         {
+            Initialize(camera, graph, scrapManager, defenseData != null ? new[] { defenseData } : System.Array.Empty<DefenseData>(), defenseRoot);
+        }
+
+        public void Initialize(
+            Camera camera,
+            NodeGraph graph,
+            ScrapManager scrapManager,
+            IReadOnlyList<DefenseData> defenses,
+            Transform defenseRoot)
+        {
             _camera = camera;
             _graph = graph;
             _scrapManager = scrapManager;
-            _defenseData = defenseData;
             _defenseRoot = defenseRoot;
+
+            _availableDefenses.Clear();
+            if (defenses != null)
+            {
+                foreach (DefenseData defense in defenses)
+                {
+                    if (defense != null)
+                    {
+                        _availableDefenses.Add(defense);
+                    }
+                }
+            }
+
+            _selectedDefenseIndex = Mathf.Clamp(_selectedDefenseIndex, 0, Mathf.Max(0, _availableDefenses.Count - 1));
+            EnsurePlacementIndicator();
+            BuildPaletteUI();
         }
 
         private void Update()
@@ -42,101 +80,409 @@ namespace DontLetThemIn.Defenses
                 return;
             }
 
+            UpdatePlacementIndicator();
+            UpdateFeedbackVisibility();
+
 #if ENABLE_INPUT_SYSTEM
             if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
             {
-                TryPlaceDefense(Mouse.current.position.ReadValue());
+                if (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject())
+                {
+                    TryPlaceDefense(Mouse.current.position.ReadValue());
+                }
             }
 
             if (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
             {
-                TryPlaceDefense(Touchscreen.current.primaryTouch.position.ReadValue());
+                var touch = Touchscreen.current.primaryTouch;
+                if (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject(touch.touchId.ReadValue()))
+                {
+                    TryPlaceDefense(Touchscreen.current.primaryTouch.position.ReadValue());
+                }
             }
 #else
             if (Input.GetMouseButtonDown(0))
             {
-                TryPlaceDefense(Input.mousePosition);
+                if (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject())
+                {
+                    TryPlaceDefense(Input.mousePosition);
+                }
             }
 
             if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
             {
-                TryPlaceDefense(Input.GetTouch(0).position);
+                Touch touch = Input.GetTouch(0);
+                if (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject(touch.fingerId))
+                {
+                    TryPlaceDefense(touch.position);
+                }
             }
 #endif
         }
 
         public bool TryPlaceDefense(Vector2 inputPosition)
         {
-            if (_defenseData == null)
+            if (!TryGetNodeForScreenPosition(inputPosition, out GridNode node))
             {
                 return false;
             }
 
-            Vector3 world = _camera.ScreenToWorldPoint(new Vector3(inputPosition.x, inputPosition.y, -_camera.transform.position.z));
-            Vector2Int gridPosition = new(Mathf.RoundToInt(world.x), Mathf.RoundToInt(world.y));
+            return TryPlaceDefenseOnNode(node.GridPosition);
+        }
+
+        public bool TryPlaceDefenseOnNode(Vector2Int gridPosition)
+        {
+            if (_graph == null || _scrapManager == null || _defenseRoot == null)
+            {
+                return false;
+            }
 
             if (!_graph.TryGetNode(gridPosition, out GridNode node))
             {
                 return false;
             }
 
-            if (node.State == NodeState.Destroyed || node.HasDefense || node.IsSafeRoom || node.IsEntryPoint)
+            DefenseData selectedDefense = SelectedDefense;
+            if (selectedDefense == null)
             {
                 return false;
             }
 
-            if (!_scrapManager.TrySpend(_defenseData.ScrapCost))
+            if (!CanPlaceOnNode(node, selectedDefense))
             {
+                if (selectedDefense.RequiresHallwayPlacement && node.VisualType != NodeVisualType.Hallway)
+                {
+                    ShowFeedback("Trap requires hallway node", new Color(1f, 0.85f, 0.4f, 1f));
+                }
+
+                return false;
+            }
+
+            if (selectedDefense.MaxActivePerFloor == 1 && selectedDefense.Category == DefenseCategory.C && HasActivePet())
+            {
+                ShowFeedback("Only one pet per floor", new Color(0.98f, 0.76f, 0.2f, 1f));
+                return false;
+            }
+
+            if (!_scrapManager.TrySpend(selectedDefense.ScrapCost))
+            {
+                ShowFeedback("Not enough Scrap", new Color(1f, 0.42f, 0.42f, 1f));
                 return false;
             }
 
             GameObject defenseObject = new($"Defense_{gridPosition.x}_{gridPosition.y}");
             defenseObject.transform.SetParent(_defenseRoot, false);
             defenseObject.transform.position = node.WorldPosition + new Vector3(0f, 0f, -0.2f);
-            defenseObject.transform.localScale = new Vector3(0.7f, 0.7f, 1f);
+            defenseObject.transform.localScale = selectedDefense.Category switch
+            {
+                DefenseCategory.C => new Vector3(0.58f, 0.58f, 1f),
+                DefenseCategory.D => new Vector3(0.54f, 0.54f, 1f),
+                _ => new Vector3(0.7f, 0.7f, 1f)
+            };
 
             SpriteRenderer renderer = defenseObject.AddComponent<SpriteRenderer>();
             renderer.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite();
-            renderer.color = new Color(0.78f, 0.18f, 0.17f);
+            renderer.color = selectedDefense.DisplayColor;
             renderer.sortingOrder = 30;
 
             DefenseInstance defense = defenseObject.AddComponent<DefenseInstance>();
-            defense.Initialize(_defenseData, node);
+            defense.Initialize(selectedDefense, node, _graph);
 
             if (!_graph.PlaceDefense(node, defense))
             {
                 Destroy(defenseObject);
-                _scrapManager.Add(_defenseData.ScrapCost);
+                _scrapManager.Add(selectedDefense.ScrapCost);
                 return false;
             }
 
             _defenses.Add(defense);
+            ShowFeedback($"{selectedDefense.DefenseName} placed", new Color(0.72f, 0.95f, 0.72f, 1f));
             return true;
         }
 
         public void TickDefenses(IReadOnlyCollection<AlienBase> aliens)
         {
-            if (aliens == null)
+            for (int i = _defenses.Count - 1; i >= 0; i--)
+            {
+                DefenseInstance defense = _defenses[i];
+                if (defense == null)
+                {
+                    _defenses.RemoveAt(i);
+                    continue;
+                }
+
+                defense.Tick(aliens);
+                if (defense.IsConsumed)
+                {
+                    _defenses.RemoveAt(i);
+                }
+            }
+        }
+
+        public void SelectDefense(int index)
+        {
+            if (_availableDefenses.Count == 0)
+            {
+                _selectedDefenseIndex = 0;
+                return;
+            }
+
+            _selectedDefenseIndex = Mathf.Clamp(index, 0, _availableDefenses.Count - 1);
+            RefreshPaletteSelection();
+        }
+
+        private bool TryGetNodeForScreenPosition(Vector2 inputPosition, out GridNode node)
+        {
+            Vector3 world = _camera.ScreenToWorldPoint(
+                new Vector3(inputPosition.x, inputPosition.y, -_camera.transform.position.z));
+            Vector2Int gridPosition = new(Mathf.RoundToInt(world.x), Mathf.RoundToInt(world.y));
+            return _graph.TryGetNode(gridPosition, out node);
+        }
+
+        private bool CanPlaceOnNode(GridNode node, DefenseData defenseData)
+        {
+            if (node == null || defenseData == null)
+            {
+                return false;
+            }
+
+            if (node.State != NodeState.Open || node.HasDefense || node.IsEntryPoint || node.IsSafeRoom)
+            {
+                return false;
+            }
+
+            if (defenseData.RequiresHallwayPlacement && node.VisualType != NodeVisualType.Hallway)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool HasActivePet()
+        {
+            foreach (DefenseInstance defense in _defenses)
+            {
+                if (defense != null &&
+                    !defense.IsConsumed &&
+                    defense.Data != null &&
+                    defense.Data.Category == DefenseCategory.C)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void EnsurePlacementIndicator()
+        {
+            if (_placementIndicator != null)
             {
                 return;
             }
 
-            foreach (DefenseInstance defense in _defenses)
+            GameObject indicator = new("PlacementIndicator");
+            indicator.transform.SetParent(transform, false);
+            indicator.transform.localScale = new Vector3(0.9f, 0.9f, 1f);
+            _placementIndicator = indicator.AddComponent<SpriteRenderer>();
+            _placementIndicator.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite();
+            _placementIndicator.sortingOrder = 35;
+            _placementIndicator.enabled = false;
+        }
+
+        private void UpdatePlacementIndicator()
+        {
+            if (_placementIndicator == null || _camera == null || EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
             {
-                if (defense == null)
+                if (_placementIndicator != null)
+                {
+                    _placementIndicator.enabled = false;
+                }
+
+                return;
+            }
+
+#if ENABLE_INPUT_SYSTEM
+            Vector2 pointerPosition = Mouse.current != null
+                ? Mouse.current.position.ReadValue()
+                : (Touchscreen.current != null ? Touchscreen.current.primaryTouch.position.ReadValue() : Vector2.zero);
+#else
+            Vector2 pointerPosition = Input.mousePosition;
+#endif
+            if (!TryGetNodeForScreenPosition(pointerPosition, out GridNode node))
+            {
+                _placementIndicator.enabled = false;
+                return;
+            }
+
+            DefenseData selected = SelectedDefense;
+            bool valid = CanPlaceOnNode(node, selected) && !(selected != null && selected.MaxActivePerFloor == 1 && selected.Category == DefenseCategory.C && HasActivePet());
+            _placementIndicator.enabled = true;
+            _placementIndicator.transform.position = node.WorldPosition + new Vector3(0f, 0f, -0.25f);
+            _placementIndicator.color = valid
+                ? new Color(0.38f, 0.94f, 0.5f, 0.35f)
+                : new Color(1f, 0.28f, 0.28f, 0.28f);
+        }
+
+        private void BuildPaletteUI()
+        {
+            if (_availableDefenses.Count == 0)
+            {
+                return;
+            }
+
+            Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+            if (canvas == null)
+            {
+                GameObject canvasObject = new("DefensePaletteCanvas");
+                canvas = canvasObject.AddComponent<Canvas>();
+                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                canvasObject.AddComponent<CanvasScaler>();
+                canvasObject.AddComponent<GraphicRaycaster>();
+            }
+
+            Transform existing = canvas.transform.Find("DefensePalette");
+            if (existing != null)
+            {
+                Destroy(existing.gameObject);
+            }
+
+            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+
+            GameObject panel = new("DefensePalette");
+            panel.transform.SetParent(canvas.transform, false);
+            RectTransform panelRect = panel.AddComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0f);
+            panelRect.anchorMax = new Vector2(0.5f, 0f);
+            panelRect.pivot = new Vector2(0.5f, 0f);
+            panelRect.sizeDelta = new Vector2(920f, 140f);
+            panelRect.anchoredPosition = new Vector2(0f, 0f);
+
+            Image panelImage = panel.AddComponent<Image>();
+            panelImage.color = new Color(0.07f, 0.08f, 0.11f, 0.8f);
+
+            _paletteButtons.Clear();
+            for (int i = 0; i < _availableDefenses.Count; i++)
+            {
+                DefenseData data = _availableDefenses[i];
+                float x = -420f + (i * 210f);
+                Button button = CreatePaletteButton(panel.transform, font, data, i, x);
+                _paletteButtons.Add(button);
+            }
+
+            GameObject feedbackObj = new("PlacementFeedback");
+            feedbackObj.transform.SetParent(panel.transform, false);
+            RectTransform feedbackRect = feedbackObj.AddComponent<RectTransform>();
+            feedbackRect.anchorMin = new Vector2(0.5f, 1f);
+            feedbackRect.anchorMax = new Vector2(0.5f, 1f);
+            feedbackRect.pivot = new Vector2(0.5f, 0.5f);
+            feedbackRect.anchoredPosition = new Vector2(0f, 18f);
+            feedbackRect.sizeDelta = new Vector2(560f, 30f);
+
+            _feedbackText = feedbackObj.AddComponent<Text>();
+            _feedbackText.font = font;
+            _feedbackText.fontSize = 20;
+            _feedbackText.alignment = TextAnchor.MiddleCenter;
+            _feedbackText.color = Color.white;
+            _feedbackText.text = string.Empty;
+            _feedbackText.gameObject.SetActive(false);
+
+            SelectDefense(_selectedDefenseIndex);
+        }
+
+        private Button CreatePaletteButton(Transform parent, Font font, DefenseData data, int index, float anchoredX)
+        {
+            GameObject buttonObject = new($"{data.DefenseName}_Button");
+            buttonObject.transform.SetParent(parent, false);
+
+            RectTransform rect = buttonObject.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0f);
+            rect.anchorMax = new Vector2(0.5f, 0f);
+            rect.pivot = new Vector2(0.5f, 0f);
+            rect.anchoredPosition = new Vector2(anchoredX, 22f);
+            rect.sizeDelta = new Vector2(195f, 90f);
+
+            Image image = buttonObject.AddComponent<Image>();
+            image.color = new Color(0.18f, 0.2f, 0.25f, 0.92f);
+
+            Button button = buttonObject.AddComponent<Button>();
+            int capturedIndex = index;
+            button.onClick.AddListener(() => SelectDefense(capturedIndex));
+
+            GameObject swatch = new("Swatch");
+            swatch.transform.SetParent(buttonObject.transform, false);
+            RectTransform swatchRect = swatch.AddComponent<RectTransform>();
+            swatchRect.anchorMin = new Vector2(0f, 0.5f);
+            swatchRect.anchorMax = new Vector2(0f, 0.5f);
+            swatchRect.pivot = new Vector2(0f, 0.5f);
+            swatchRect.anchoredPosition = new Vector2(12f, 0f);
+            swatchRect.sizeDelta = new Vector2(26f, 26f);
+            Image swatchImage = swatch.AddComponent<Image>();
+            swatchImage.color = data.DisplayColor;
+
+            GameObject labelObject = new("Label");
+            labelObject.transform.SetParent(buttonObject.transform, false);
+            RectTransform labelRect = labelObject.AddComponent<RectTransform>();
+            labelRect.anchorMin = new Vector2(0f, 0f);
+            labelRect.anchorMax = new Vector2(1f, 1f);
+            labelRect.offsetMin = new Vector2(44f, 8f);
+            labelRect.offsetMax = new Vector2(-8f, -8f);
+
+            Text label = labelObject.AddComponent<Text>();
+            label.font = font;
+            label.fontSize = 16;
+            label.alignment = TextAnchor.MiddleLeft;
+            label.color = Color.white;
+            label.text = $"{data.DefenseName}\n{data.ScrapCost} Scrap";
+
+            return button;
+        }
+
+        private void RefreshPaletteSelection()
+        {
+            for (int i = 0; i < _paletteButtons.Count; i++)
+            {
+                if (_paletteButtons[i] == null)
                 {
                     continue;
                 }
 
-                foreach (AlienBase alien in aliens)
+                Image image = _paletteButtons[i].GetComponent<Image>();
+                if (image == null)
                 {
-                    if (alien == null || !alien.IsAlive)
-                    {
-                        continue;
-                    }
-
-                    defense.TryApplyDamage(alien, alien.CurrentNode);
+                    continue;
                 }
+
+                image.color = i == _selectedDefenseIndex
+                    ? new Color(0.28f, 0.37f, 0.5f, 0.96f)
+                    : new Color(0.18f, 0.2f, 0.25f, 0.92f);
+            }
+        }
+
+        private void ShowFeedback(string message, Color color)
+        {
+            if (_feedbackText == null)
+            {
+                return;
+            }
+
+            _feedbackText.text = message;
+            _feedbackText.color = color;
+            _feedbackText.gameObject.SetActive(true);
+            _feedbackUntil = Time.unscaledTime + FeedbackDuration;
+        }
+
+        private void UpdateFeedbackVisibility()
+        {
+            if (_feedbackText == null || !_feedbackText.gameObject.activeSelf)
+            {
+                return;
+            }
+
+            if (Time.unscaledTime > _feedbackUntil)
+            {
+                _feedbackText.gameObject.SetActive(false);
             }
         }
     }

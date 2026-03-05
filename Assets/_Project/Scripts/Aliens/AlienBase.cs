@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using DontLetThemIn.Grid;
 using UnityEngine;
 
@@ -13,15 +15,19 @@ namespace DontLetThemIn.Aliens
         private float _health;
         private int _nextPathIndex;
         private bool _repathRequested;
+        private float _stunUntil;
 
         public event Action<AlienBase> Died;
         public event Action<AlienBase> ReachedSafeRoom;
+        public event Action<AlienBase, float> Damaged;
 
         public AlienData Data { get; private set; }
 
         public GridNode CurrentNode { get; private set; }
 
         public IReadOnlyList<GridNode> CurrentPath => _path;
+
+        public float CurrentHealth => _health;
 
         public bool IsAlive { get; private set; }
 
@@ -55,6 +61,11 @@ namespace DontLetThemIn.Aliens
                 RecalculatePath();
             }
 
+            if (Time.unscaledTime < _stunUntil)
+            {
+                return;
+            }
+
             if (IsQueued)
             {
                 return;
@@ -78,11 +89,70 @@ namespace DontLetThemIn.Aliens
                 return;
             }
 
-            _health -= Mathf.Max(0f, damage);
+            float finalDamage = Mathf.Max(0f, damage);
+            if (finalDamage <= 0f)
+            {
+                return;
+            }
+
+            _health -= finalDamage;
+            Damaged?.Invoke(this, finalDamage);
             if (_health <= 0f)
             {
                 Die();
             }
+        }
+
+        public void ApplyStun(float duration)
+        {
+            if (!IsAlive || duration <= 0f)
+            {
+                return;
+            }
+
+            _stunUntil = Mathf.Max(_stunUntil, Time.unscaledTime + duration);
+        }
+
+        public void ApplyKnockback(int nodes)
+        {
+            if (!IsAlive || nodes <= 0 || _path.Count <= 1)
+            {
+                return;
+            }
+
+            for (int i = 0; i < nodes; i++)
+            {
+                StepBackOneNode();
+            }
+
+            _repathRequested = true;
+        }
+
+        public void ApplyRoombaDetour()
+        {
+            if (!IsAlive || _graph == null || CurrentNode == null)
+            {
+                return;
+            }
+
+            GridNode nextPathNode = _nextPathIndex < _path.Count ? _path[_nextPathIndex] : null;
+            GridNode detourNode = _graph
+                .GetNeighbors(CurrentNode)
+                .Where(node => node != null &&
+                               node.IsWalkableForAliens &&
+                               !node.IsSafeRoom &&
+                               node != nextPathNode)
+                .OrderByDescending(node => Vector2Int.Distance(node.GridPosition, _goal.GridPosition))
+                .FirstOrDefault();
+
+            if (detourNode == null)
+            {
+                return;
+            }
+
+            CurrentNode = detourNode;
+            transform.position = detourNode.WorldPosition;
+            RecalculatePath();
         }
 
         private void FollowPath()
@@ -150,7 +220,7 @@ namespace DontLetThemIn.Aliens
 
             IsAlive = false;
             Died?.Invoke(this);
-            Destroy(gameObject);
+            StartCoroutine(DeathRoutine());
         }
 
         private void ReachSafeRoom()
@@ -162,6 +232,49 @@ namespace DontLetThemIn.Aliens
 
             IsAlive = false;
             ReachedSafeRoom?.Invoke(this);
+            Destroy(gameObject);
+        }
+
+        private void StepBackOneNode()
+        {
+            if (_path.Count <= 1)
+            {
+                return;
+            }
+
+            int currentIndex = Mathf.Clamp(_nextPathIndex - 1, 0, _path.Count - 1);
+            int backIndex = Mathf.Max(0, currentIndex - 1);
+            GridNode fallbackNode = _path[backIndex];
+            CurrentNode = fallbackNode;
+            transform.position = fallbackNode.WorldPosition;
+            _nextPathIndex = Mathf.Clamp(backIndex + 1, 1, _path.Count);
+        }
+
+        private IEnumerator DeathRoutine()
+        {
+            SpriteRenderer spriteRenderer = GetComponent<SpriteRenderer>();
+            Vector3 startScale = transform.localScale;
+            Vector3 endScale = startScale * 0.45f;
+            Color startColor = spriteRenderer != null ? spriteRenderer.color : Color.white;
+            float elapsed = 0f;
+            const float duration = 0.15f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime > 0f ? Time.deltaTime : Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                transform.localScale = Vector3.Lerp(startScale, endScale, t);
+
+                if (spriteRenderer != null)
+                {
+                    Color c = startColor;
+                    c.a = Mathf.Lerp(startColor.a, 0f, t);
+                    spriteRenderer.color = c;
+                }
+
+                yield return null;
+            }
+
             Destroy(gameObject);
         }
     }

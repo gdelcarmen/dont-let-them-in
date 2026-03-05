@@ -79,12 +79,18 @@ namespace DontLetThemIn.Utils.Editor
             EnsureAlienAsset("Assets/_Project/ScriptableObjects/AlienData/TechUnit.asset", Stage1DataFactory.CreateTechUnitAlien);
             EnsureAlienAsset("Assets/_Project/ScriptableObjects/AlienData/Overlord.asset", Stage1DataFactory.CreateOverlordAlien);
 
-            DefenseData defense = AssetDatabase.LoadAssetAtPath<DefenseData>("Assets/_Project/ScriptableObjects/DefenseData/Tripwire.asset");
-            if (defense == null)
-            {
-                defense = Stage1DataFactory.CreateDefaultDefense();
-                AssetDatabase.CreateAsset(defense, "Assets/_Project/ScriptableObjects/DefenseData/Tripwire.asset");
-            }
+            EnsureDefenseAsset(
+                "Assets/_Project/ScriptableObjects/DefenseData/PaintCanPendulum.asset",
+                Stage1DataFactory.CreatePaintCanPendulumDefense);
+            EnsureDefenseAsset(
+                "Assets/_Project/ScriptableObjects/DefenseData/ShotgunMount.asset",
+                Stage1DataFactory.CreateShotgunMountDefense);
+            EnsureDefenseAsset(
+                "Assets/_Project/ScriptableObjects/DefenseData/Dog.asset",
+                Stage1DataFactory.CreateDogDefense);
+            EnsureDefenseAsset(
+                "Assets/_Project/ScriptableObjects/DefenseData/Roomba.asset",
+                Stage1DataFactory.CreateRoombaDefense);
 
             AlienData grey = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/Grey.asset");
             AlienData stalker = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/Stalker.asset");
@@ -182,8 +188,17 @@ namespace DontLetThemIn.Utils.Editor
                 new Vector3(1.25f, 1.35f, 1f));
 
             EnsureDefensePrefab(
-                "Assets/_Project/Prefabs/Defenses/TripwireDefense.prefab",
-                new Color(0.82f, 0.35f, 0.2f, 1f));
+                "Assets/_Project/Prefabs/Defenses/PaintCanPendulum.prefab",
+                new Color(0.96f, 0.52f, 0.2f, 1f));
+            EnsureDefensePrefab(
+                "Assets/_Project/Prefabs/Defenses/ShotgunMount.prefab",
+                new Color(0.88f, 0.22f, 0.2f, 1f));
+            EnsureDefensePrefab(
+                "Assets/_Project/Prefabs/Defenses/Dog.prefab",
+                new Color(0.45f, 0.3f, 0.18f, 1f));
+            EnsureDefensePrefab(
+                "Assets/_Project/Prefabs/Defenses/Roomba.prefab",
+                new Color(0.2f, 0.8f, 0.75f, 1f));
         }
 
         private static void EnsureScenes()
@@ -291,13 +306,27 @@ namespace DontLetThemIn.Utils.Editor
             SerializedObject managerObject = new(manager);
 
             FloorLayout floorLayout = AssetDatabase.LoadAssetAtPath<FloorLayout>("Assets/_Project/ScriptableObjects/FloorLayouts/GroundFloor.asset");
-            DefenseData defenseData = AssetDatabase.LoadAssetAtPath<DefenseData>("Assets/_Project/ScriptableObjects/DefenseData/Tripwire.asset");
+            string[] defensePaths =
+            {
+                "Assets/_Project/ScriptableObjects/DefenseData/PaintCanPendulum.asset",
+                "Assets/_Project/ScriptableObjects/DefenseData/ShotgunMount.asset",
+                "Assets/_Project/ScriptableObjects/DefenseData/Dog.asset",
+                "Assets/_Project/ScriptableObjects/DefenseData/Roomba.asset"
+            };
+            DefenseData defaultDefense = AssetDatabase.LoadAssetAtPath<DefenseData>(defensePaths[0]);
             AlienData grey = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/Grey.asset");
             AlienData stalker = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/Stalker.asset");
             AlienData techUnit = AssetDatabase.LoadAssetAtPath<AlienData>("Assets/_Project/ScriptableObjects/AlienData/TechUnit.asset");
 
             managerObject.FindProperty("floorLayout").objectReferenceValue = floorLayout;
-            managerObject.FindProperty("defaultDefense").objectReferenceValue = defenseData;
+            managerObject.FindProperty("defaultDefense").objectReferenceValue = defaultDefense;
+            SerializedProperty availableDefenses = managerObject.FindProperty("availableDefenses");
+            availableDefenses.arraySize = defensePaths.Length;
+            for (int i = 0; i < defensePaths.Length; i++)
+            {
+                availableDefenses.GetArrayElementAtIndex(i).objectReferenceValue =
+                    AssetDatabase.LoadAssetAtPath<DefenseData>(defensePaths[i]);
+            }
             managerObject.FindProperty("greyAlien").objectReferenceValue = grey;
             managerObject.FindProperty("stalkerAlien").objectReferenceValue = stalker;
             managerObject.FindProperty("techUnitAlien").objectReferenceValue = techUnit;
@@ -350,6 +379,18 @@ namespace DontLetThemIn.Utils.Editor
         private static void EnsureAlienAsset(string assetPath, System.Func<AlienData> factory)
         {
             AlienData data = AssetDatabase.LoadAssetAtPath<AlienData>(assetPath);
+            if (data != null)
+            {
+                return;
+            }
+
+            data = factory();
+            AssetDatabase.CreateAsset(data, assetPath);
+        }
+
+        private static void EnsureDefenseAsset(string assetPath, System.Func<DefenseData> factory)
+        {
+            DefenseData data = AssetDatabase.LoadAssetAtPath<DefenseData>(assetPath);
             if (data != null)
             {
                 return;

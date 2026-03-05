@@ -92,7 +92,7 @@ namespace DontLetThemIn.Grid
             }
 
             node.SetDefense(defense);
-            node.SetState(defense.Data != null && defense.Data.BlocksPath ? NodeState.Blocked : NodeState.HazardActive);
+            node.SetState(defense.Data != null && defense.Data.BlocksPath ? NodeState.Blocked : NodeState.Open);
             NodeChanged?.Invoke(node);
             return true;
         }
