@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using DontLetThemIn.Audio;
 using DontLetThemIn.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -252,6 +253,7 @@ namespace DontLetThemIn.UI
             }
 
             button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(AudioManager.TryPlayUiButton);
             if (onClick != null)
             {
                 button.onClick.AddListener(onClick);

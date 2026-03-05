@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using DontLetThemIn.Aliens;
+using DontLetThemIn.Audio;
 using DontLetThemIn.Economy;
 using DontLetThemIn.Grid;
 using DontLetThemIn.Hazards;
@@ -371,8 +372,9 @@ namespace DontLetThemIn.Defenses
 
             SpriteRenderer renderer = defenseObject.AddComponent<SpriteRenderer>();
             renderer.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite();
-            renderer.color = defenseData.DisplayColor;
+            renderer.color = new Color(defenseData.DisplayColor.r, defenseData.DisplayColor.g, defenseData.DisplayColor.b, 0.2f);
             renderer.sortingOrder = runtimeSpawn ? 31 : 30;
+            BuildDefenseVisual(defenseData, defenseObject.transform, runtimeSpawn ? 32 : 31);
 
             defense = defenseObject.AddComponent<DefenseInstance>();
             defense.Initialize(defenseData, node, _graph);
@@ -608,7 +610,8 @@ namespace DontLetThemIn.Defenses
             rootRect.sizeDelta = new Vector2(980f, 168f);
 
             Image rootImage = root.AddComponent<Image>();
-            rootImage.color = new Color(0.07f, 0.08f, 0.11f, 0.84f);
+            rootImage.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetPaperSprite();
+            rootImage.color = new Color(0.88f, 0.82f, 0.72f, 0.92f);
 
             GameObject headerObject = new("PaletteHeader");
             headerObject.transform.SetParent(root.transform, false);
@@ -711,10 +714,14 @@ namespace DontLetThemIn.Defenses
             rect.sizeDelta = new Vector2(190f, 90f);
 
             Image image = buttonObject.AddComponent<Image>();
-            image.color = new Color(0.18f, 0.2f, 0.25f, 0.92f);
+            image.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetPaperSprite();
+            image.color = new Color(0.77f, 0.69f, 0.58f, 0.96f);
+
+            CreateButtonBorder(buttonObject.transform);
 
             Button button = buttonObject.AddComponent<Button>();
             int capturedIndex = index;
+            button.onClick.AddListener(AudioManager.TryPlayUiButton);
             button.onClick.AddListener(() => SelectDefense(capturedIndex));
 
             GameObject swatch = new("Swatch");
@@ -765,9 +772,12 @@ namespace DontLetThemIn.Defenses
             rect.sizeDelta = new Vector2(190f, 90f);
 
             Image image = buttonObject.AddComponent<Image>();
-            image.color = new Color(0.18f, 0.2f, 0.25f, 0.92f);
+            image.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetPaperSprite();
+            image.color = new Color(0.77f, 0.69f, 0.58f, 0.96f);
+            CreateButtonBorder(buttonObject.transform);
 
             Button button = buttonObject.AddComponent<Button>();
+            button.onClick.AddListener(AudioManager.TryPlayUiButton);
             button.onClick.AddListener(ToggleBarricadeMode);
 
             GameObject labelObject = new("Label");
@@ -808,12 +818,12 @@ namespace DontLetThemIn.Defenses
                 entry.Button.interactable = affordable;
 
                 Color color = selected
-                    ? new Color(0.3f, 0.38f, 0.5f, 0.96f)
-                    : new Color(0.18f, 0.2f, 0.25f, 0.92f);
+                    ? new Color(0.62f, 0.52f, 0.38f, 0.96f)
+                    : new Color(0.77f, 0.69f, 0.58f, 0.96f);
 
                 if (!affordable)
                 {
-                    color = Color.Lerp(color, new Color(0.15f, 0.15f, 0.15f, 0.72f), 0.55f);
+                    color = Color.Lerp(color, new Color(0.26f, 0.24f, 0.2f, 0.72f), 0.55f);
                 }
 
                 entry.Background.color = color;
@@ -835,12 +845,12 @@ namespace DontLetThemIn.Defenses
                     _barricadeButton.interactable = affordable;
 
                     Color color = _barricadeMode
-                        ? new Color(0.26f, 0.46f, 0.64f, 0.96f)
-                        : new Color(0.18f, 0.2f, 0.25f, 0.92f);
+                        ? new Color(0.52f, 0.58f, 0.72f, 0.96f)
+                        : new Color(0.77f, 0.69f, 0.58f, 0.96f);
 
                     if (!affordable)
                     {
-                        color = Color.Lerp(color, new Color(0.15f, 0.15f, 0.15f, 0.72f), 0.55f);
+                        color = Color.Lerp(color, new Color(0.26f, 0.24f, 0.2f, 0.72f), 0.55f);
                     }
 
                     barricadeImage.color = color;
@@ -887,6 +897,86 @@ namespace DontLetThemIn.Defenses
             public Button Button;
             public Image Background;
             public Text Label;
+        }
+
+        private static void CreateButtonBorder(Transform parent)
+        {
+            GameObject border = new("Border");
+            border.transform.SetParent(parent, false);
+            RectTransform borderRect = border.AddComponent<RectTransform>();
+            borderRect.anchorMin = Vector2.zero;
+            borderRect.anchorMax = Vector2.one;
+            borderRect.offsetMin = new Vector2(2f, 2f);
+            borderRect.offsetMax = new Vector2(-2f, -2f);
+            Image borderImage = border.AddComponent<Image>();
+            borderImage.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite();
+            borderImage.color = new Color(0.45f, 0.35f, 0.24f, 0.7f);
+            borderImage.raycastTarget = false;
+            border.transform.SetAsFirstSibling();
+        }
+
+        private static void BuildDefenseVisual(DefenseData defenseData, Transform parent, int sortingOrder)
+        {
+            if (defenseData == null || parent == null)
+            {
+                return;
+            }
+
+            string defenseName = defenseData.DefenseName ?? string.Empty;
+            if (string.Equals(defenseName, "Paint Can Pendulum", System.StringComparison.OrdinalIgnoreCase))
+            {
+                AddVisualPart(parent, "TrapBody", global::DontLetThemIn.RuntimeSpriteFactory.GetCircleSprite(), Vector3.zero, new Vector3(0.46f, 0.46f, 1f), 0f, new Color(0.95f, 0.46f, 0.2f, 1f), sortingOrder);
+                AddVisualPart(parent, "PendulumLine", global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(), new Vector3(0f, 0.22f, 0f), new Vector3(0.06f, 0.34f, 1f), 0f, new Color(0.38f, 0.26f, 0.12f, 1f), sortingOrder + 1);
+                AddVisualPart(parent, "PendulumHead", global::DontLetThemIn.RuntimeSpriteFactory.GetCircleSprite(), new Vector3(0f, 0.02f, 0f), new Vector3(0.12f, 0.12f, 1f), 0f, new Color(0.78f, 0.34f, 0.14f, 1f), sortingOrder + 2);
+                return;
+            }
+
+            if (string.Equals(defenseName, "Shotgun Mount", System.StringComparison.OrdinalIgnoreCase))
+            {
+                AddVisualPart(parent, "Base", global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(), Vector3.zero, new Vector3(0.58f, 0.28f, 1f), 0f, new Color(0.82f, 0.2f, 0.2f, 1f), sortingOrder);
+                AddVisualPart(parent, "Barrel", global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(), new Vector3(0.18f, 0f, 0f), new Vector3(0.26f, 0.08f, 1f), 0f, new Color(0.95f, 0.62f, 0.52f, 1f), sortingOrder + 1);
+                AddVisualPart(parent, "Direction", global::DontLetThemIn.RuntimeSpriteFactory.GetTriangleSprite(), new Vector3(0.34f, 0f, 0f), new Vector3(0.1f, 0.14f, 1f), -90f, new Color(1f, 0.82f, 0.6f, 1f), sortingOrder + 2);
+                return;
+            }
+
+            if (string.Equals(defenseName, "Dog", System.StringComparison.OrdinalIgnoreCase))
+            {
+                AddVisualPart(parent, "Body", global::DontLetThemIn.RuntimeSpriteFactory.GetCircleSprite(), Vector3.zero, new Vector3(0.56f, 0.4f, 1f), 0f, new Color(0.45f, 0.3f, 0.18f, 1f), sortingOrder);
+                AddVisualPart(parent, "EarLeft", global::DontLetThemIn.RuntimeSpriteFactory.GetTriangleSprite(), new Vector3(-0.16f, 0.18f, 0f), new Vector3(0.12f, 0.14f, 1f), 8f, new Color(0.39f, 0.24f, 0.14f, 1f), sortingOrder + 1);
+                AddVisualPart(parent, "EarRight", global::DontLetThemIn.RuntimeSpriteFactory.GetTriangleSprite(), new Vector3(0.16f, 0.18f, 0f), new Vector3(0.12f, 0.14f, 1f), -8f, new Color(0.39f, 0.24f, 0.14f, 1f), sortingOrder + 1);
+                AddVisualPart(parent, "Nose", global::DontLetThemIn.RuntimeSpriteFactory.GetCircleSprite(), new Vector3(0.16f, -0.02f, 0f), new Vector3(0.08f, 0.08f, 1f), 0f, new Color(0.14f, 0.08f, 0.06f, 1f), sortingOrder + 2);
+                return;
+            }
+
+            if (string.Equals(defenseName, "Roomba", System.StringComparison.OrdinalIgnoreCase))
+            {
+                AddVisualPart(parent, "Body", global::DontLetThemIn.RuntimeSpriteFactory.GetCircleSprite(), Vector3.zero, new Vector3(0.52f, 0.52f, 1f), 0f, new Color(0.2f, 0.8f, 0.75f, 1f), sortingOrder);
+                AddVisualPart(parent, "Chevron", global::DontLetThemIn.RuntimeSpriteFactory.GetTriangleSprite(), new Vector3(0f, 0.04f, 0f), new Vector3(0.14f, 0.16f, 1f), 0f, new Color(0.1f, 0.46f, 0.44f, 1f), sortingOrder + 1);
+                return;
+            }
+
+            AddVisualPart(parent, "Fallback", global::DontLetThemIn.RuntimeSpriteFactory.GetCircleSprite(), Vector3.zero, new Vector3(0.46f, 0.46f, 1f), 0f, defenseData.DisplayColor, sortingOrder);
+        }
+
+        private static void AddVisualPart(
+            Transform parent,
+            string name,
+            Sprite sprite,
+            Vector3 localPosition,
+            Vector3 localScale,
+            float rotationZ,
+            Color color,
+            int sortingOrder)
+        {
+            GameObject part = new(name);
+            part.transform.SetParent(parent, false);
+            part.transform.localPosition = localPosition;
+            part.transform.localScale = localScale;
+            part.transform.localRotation = Quaternion.Euler(0f, 0f, rotationZ);
+            SpriteRenderer renderer = part.AddComponent<SpriteRenderer>();
+            renderer.sprite = sprite;
+            renderer.color = color;
+            renderer.sortingOrder = sortingOrder;
         }
     }
 }

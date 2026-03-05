@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using DontLetThemIn.Audio;
 using DontLetThemIn.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -22,6 +23,7 @@ namespace DontLetThemIn.UI
         private Text _integrityBarLabel;
         private Image _integrityBarFill;
         private Image _scrapIcon;
+        private Image _hudParchmentTint;
 
         private GameObject _draftRoot;
         private GameObject _runEndRoot;
@@ -32,6 +34,7 @@ namespace DontLetThemIn.UI
         private int _integrityMax = 10;
         private int _displayedScrap;
         private Coroutine _scrapTweenRoutine;
+        private Coroutine _breachFeedbackRoutine;
 
         public event Action RestartRequested;
 
@@ -65,6 +68,7 @@ namespace DontLetThemIn.UI
             EnsureExtendedHudElements();
 
             _restartButton.onClick.RemoveAllListeners();
+            _restartButton.onClick.AddListener(AudioManager.TryPlayUiButton);
             _restartButton.onClick.AddListener(() => RestartRequested?.Invoke());
 
             HideWaveCountdown();
@@ -134,6 +138,7 @@ namespace DontLetThemIn.UI
             if (_integrityBarFill != null)
             {
                 _integrityBarFill.fillAmount = Mathf.Clamp01(clamped / (float)_integrityMax);
+                _integrityBarFill.color = ResolveIntegrityColor(clamped / (float)_integrityMax);
             }
 
             if (_integrityBarLabel != null)
@@ -165,6 +170,16 @@ namespace DontLetThemIn.UI
             {
                 _restartButton.gameObject.SetActive(visible);
             }
+        }
+
+        public void PlaySafeRoomBreachFeedback()
+        {
+            if (_breachFeedbackRoutine != null)
+            {
+                StopCoroutine(_breachFeedbackRoutine);
+            }
+
+            _breachFeedbackRoutine = StartCoroutine(SafeRoomBreachFeedbackRoutine());
         }
 
         public void ShowPrepCountdown(int secondsRemaining)
@@ -306,6 +321,7 @@ namespace DontLetThemIn.UI
                 button.onClick.RemoveAllListeners();
                 button.onClick.AddListener(() =>
                 {
+                    AudioManager.TryPlayUiButton();
                     onReturnToMenu?.Invoke();
                     if (SceneManager.GetActiveScene().name != "MainMenu")
                     {
@@ -443,6 +459,7 @@ namespace DontLetThemIn.UI
             colors.highlightedColor = new Color(0.28f, 0.28f, 0.28f, 0.95f);
             colors.pressedColor = new Color(0.18f, 0.18f, 0.18f, 0.95f);
             button.colors = colors;
+            button.onClick.AddListener(AudioManager.TryPlayUiButton);
 
             GameObject textObject = new("Text");
             textObject.transform.SetParent(buttonObject.transform, false);
@@ -521,6 +538,8 @@ namespace DontLetThemIn.UI
                 return;
             }
 
+            EnsureHudBackdrop(canvas.transform);
+
             if (_scrapText != null)
             {
                 _displayedScrap = ParseScrapValue(_scrapText.text);
@@ -566,6 +585,43 @@ namespace DontLetThemIn.UI
             EnsureIntegrityBar(canvas.transform);
             _prepCountdownText.gameObject.SetActive(false);
             _waveCountdownText.gameObject.SetActive(false);
+        }
+
+        private void EnsureHudBackdrop(Transform canvasTransform)
+        {
+            if (_hudParchmentTint != null)
+            {
+                return;
+            }
+
+            Transform existing = canvasTransform.Find("HudParchmentTint");
+            GameObject tintObject = existing != null ? existing.gameObject : new GameObject("HudParchmentTint");
+            if (existing == null)
+            {
+                tintObject.transform.SetParent(canvasTransform, false);
+                tintObject.transform.SetAsFirstSibling();
+            }
+
+            RectTransform rect = tintObject.GetComponent<RectTransform>();
+            if (rect == null)
+            {
+                rect = tintObject.AddComponent<RectTransform>();
+            }
+
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            _hudParchmentTint = tintObject.GetComponent<Image>();
+            if (_hudParchmentTint == null)
+            {
+                _hudParchmentTint = tintObject.AddComponent<Image>();
+            }
+
+            _hudParchmentTint.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetPaperSprite();
+            _hudParchmentTint.color = new Color(0.96f, 0.93f, 0.86f, 0.1f);
+            _hudParchmentTint.raycastTarget = false;
         }
 
         private void EnsureScrapIcon(Transform scrapTransform)
@@ -685,7 +741,7 @@ namespace DontLetThemIn.UI
             rootRect.offsetMin = Vector2.zero;
             rootRect.offsetMax = Vector2.zero;
             Image background = _draftRoot.AddComponent<Image>();
-            background.color = new Color(0f, 0f, 0f, 0.84f);
+            background.color = new Color(0.09f, 0.08f, 0.07f, 0.88f);
 
             CreateText(
                 "Title",
@@ -707,7 +763,19 @@ namespace DontLetThemIn.UI
                 cardRect.anchoredPosition = Vector2.zero;
                 cardRect.sizeDelta = new Vector2(240f, 290f);
                 Image cardBackground = card.AddComponent<Image>();
-                cardBackground.color = new Color(0.16f, 0.2f, 0.28f, 0.95f);
+                cardBackground.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetPaperSprite();
+                cardBackground.color = new Color(0.95f, 0.91f, 0.82f, 0.96f);
+
+                GameObject accent = new("AccentBar");
+                accent.transform.SetParent(card.transform, false);
+                RectTransform accentRect = accent.AddComponent<RectTransform>();
+                accentRect.anchorMin = new Vector2(0f, 1f);
+                accentRect.anchorMax = new Vector2(1f, 1f);
+                accentRect.pivot = new Vector2(0.5f, 1f);
+                accentRect.anchoredPosition = new Vector2(0f, -4f);
+                accentRect.sizeDelta = new Vector2(0f, 10f);
+                Image accentImage = accent.AddComponent<Image>();
+                accentImage.color = new Color(0.6f, 0.52f, 0.34f, 0.92f);
 
                 GameObject icon = new("CategoryIcon");
                 icon.transform.SetParent(card.transform, false);
@@ -783,9 +851,10 @@ namespace DontLetThemIn.UI
                 return;
             }
 
-            Text title = card.Find("CardTitle")?.GetComponent<Text>();
+                    Text title = card.Find("CardTitle")?.GetComponent<Text>();
             Text body = card.Find("CardBody")?.GetComponent<Text>();
             Image icon = card.Find("CategoryIcon")?.GetComponent<Image>();
+            Image accent = card.Find("AccentBar")?.GetComponent<Image>();
             Button button = card.Find("Button")?.GetComponent<Button>();
 
             if (title != null)
@@ -807,12 +876,20 @@ namespace DontLetThemIn.UI
                     : new Color(0.7f, 0.7f, 0.7f, 0.8f);
             }
 
+            if (accent != null)
+            {
+                accent.color = offer != null
+                    ? offer.AccentColor
+                    : new Color(0.62f, 0.54f, 0.36f, 0.9f);
+            }
+
             if (button != null)
             {
                 button.onClick.RemoveAllListeners();
                 int captured = index;
                 button.onClick.AddListener(() =>
                 {
+                    AudioManager.TryPlayUiButton();
                     if (_draftSelectionLocked)
                     {
                         return;
@@ -893,7 +970,7 @@ namespace DontLetThemIn.UI
             rootRect.offsetMin = Vector2.zero;
             rootRect.offsetMax = Vector2.zero;
             Image background = _runEndRoot.AddComponent<Image>();
-            background.color = new Color(0f, 0f, 0f, 0.86f);
+            background.color = new Color(0.08f, 0.07f, 0.06f, 0.9f);
 
             Text title = CreateText(
                 "Title",
@@ -911,9 +988,10 @@ namespace DontLetThemIn.UI
                 _font,
                 TextAnchor.MiddleCenter,
                 new Vector2(0f, -26f),
-                new Vector2(760f, 210f),
-                28);
+                new Vector2(760f, 240f),
+                24);
             summary.text = string.Empty;
+            summary.color = new Color(0.95f, 0.94f, 0.9f, 1f);
 
             Button returnButton = CreateButton(
                 _runEndRoot.transform,
@@ -950,6 +1028,59 @@ namespace DontLetThemIn.UI
             adText.color = new Color(0.88f, 0.88f, 0.88f, 0.75f);
 
             _runEndRoot.SetActive(false);
+        }
+
+        private static Color ResolveIntegrityColor(float fraction)
+        {
+            float t = Mathf.Clamp01(fraction);
+            Color low = new Color(0.88f, 0.28f, 0.24f, 1f);
+            Color high = new Color(0.28f, 0.82f, 0.4f, 1f);
+            return Color.Lerp(low, high, t);
+        }
+
+        private IEnumerator SafeRoomBreachFeedbackRoutine()
+        {
+            Color original = _integrityBarFill != null ? _integrityBarFill.color : Color.white;
+            Camera camera = Camera.main;
+            if (camera == null)
+            {
+                camera = FindFirstObjectByType<Camera>();
+            }
+
+            Vector3 startPosition = camera != null ? camera.transform.position : Vector3.zero;
+            float elapsed = 0f;
+            const float duration = 0.3f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                float flash = Mathf.PingPong(t * 5f, 1f);
+                if (_integrityBarFill != null)
+                {
+                    _integrityBarFill.color = Color.Lerp(original, new Color(1f, 0.18f, 0.18f, 1f), flash);
+                }
+
+                if (camera != null)
+                {
+                    Vector2 shake = UnityEngine.Random.insideUnitCircle * 0.08f * (1f - t);
+                    camera.transform.position = startPosition + new Vector3(shake.x, shake.y, 0f);
+                }
+
+                yield return null;
+            }
+
+            if (_integrityBarFill != null)
+            {
+                _integrityBarFill.color = original;
+            }
+
+            if (camera != null)
+            {
+                camera.transform.position = startPosition;
+            }
+
+            _breachFeedbackRoutine = null;
         }
 
         private static int ParseScrapValue(string scrapText)

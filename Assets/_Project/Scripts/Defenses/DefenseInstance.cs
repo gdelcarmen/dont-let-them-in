@@ -1,4 +1,5 @@
 using DontLetThemIn.Aliens;
+using DontLetThemIn.Audio;
 using DontLetThemIn.Grid;
 using System.Collections;
 using System.Collections.Generic;
@@ -29,6 +30,7 @@ namespace DontLetThemIn.Defenses
         private TextMesh _statusLabel;
         private int _trapResetCharges;
         private int _extraWeaponTargets;
+        private AudioSource _loopAudioSource;
 
         public DefenseData Data { get; private set; }
 
@@ -72,6 +74,11 @@ namespace DontLetThemIn.Defenses
             if (Data != null && Data.Category == DefenseCategory.D)
             {
                 RebuildPatrolRoute();
+            }
+
+            if (Data != null && string.Equals(Data.DefenseName, "Roomba", System.StringComparison.OrdinalIgnoreCase))
+            {
+                _loopAudioSource = AudioManager.AttachRoombaLoopSource(transform);
             }
 
             EnsureStatusLabel();
@@ -124,6 +131,8 @@ namespace DontLetThemIn.Defenses
             }
 
             ActivatePulse();
+            SpawnTrapTriggerEffects();
+            AudioManager.TryPlayTrapTrigger();
             _nextAttackTime = Time.unscaledTime + Mathf.Max(0.01f, Data.AttackInterval);
             if (Data.CausesCollateral)
             {
@@ -200,9 +209,15 @@ namespace DontLetThemIn.Defenses
             for (int i = 0; i < targets.Count; i++)
             {
                 ApplyDamageAndTrackKill(targets[i], Data.Damage);
+                SpawnWeaponTrace(targets[i].transform.position);
             }
 
             ActivatePulse();
+            if (string.Equals(Data.DefenseName, "Shotgun Mount", System.StringComparison.OrdinalIgnoreCase))
+            {
+                AudioManager.TryPlayShotgunFire();
+            }
+
             _nextAttackTime = Time.unscaledTime + Mathf.Max(0.1f, Data.AttackInterval);
         }
 
@@ -262,6 +277,11 @@ namespace DontLetThemIn.Defenses
             }
 
             ActivatePulse();
+            if (string.Equals(Data.DefenseName, "Dog", System.StringComparison.OrdinalIgnoreCase))
+            {
+                AudioManager.TryPlayDogBark();
+            }
+
             _isRetreating = true;
             _nextAttackTime = now + Mathf.Max(0.2f, Data.AttackInterval);
         }
@@ -521,7 +541,18 @@ namespace DontLetThemIn.Defenses
                 _graph.RemoveDefense(Node);
             }
 
+            if (_loopAudioSource != null)
+            {
+                _loopAudioSource.Stop();
+            }
+
             Destroyed?.Invoke(this);
+
+            if (!Application.isPlaying)
+            {
+                SafeDestroy(gameObject);
+                return;
+            }
 
             if (_fadeRoutine == null)
             {
@@ -551,7 +582,7 @@ namespace DontLetThemIn.Defenses
                 yield return null;
             }
 
-            Destroy(gameObject);
+            SafeDestroy(gameObject);
         }
 
         private void EnsureStatusLabel()
@@ -586,11 +617,150 @@ namespace DontLetThemIn.Defenses
                 float pulse = Mathf.Lerp(0.5f, 1f, Mathf.PingPong(Time.unscaledTime * 3.5f, 1f));
                 Color baseColor = new Color(1f, 0.9f, 0.35f, 1f);
                 baseColor.a = pulse;
-                _statusLabel.color = baseColor;
+            _statusLabel.color = baseColor;
+        }
+        else
+        {
+            _statusLabel.text = string.Empty;
+        }
+    }
+
+        private void SpawnTrapTriggerEffects()
+        {
+            if (!Application.isPlaying || Node == null)
+            {
+                return;
+            }
+
+            StartCoroutine(TrapFlashRoutine(Node.WorldPosition));
+            SpawnParticleBurst(Node.WorldPosition + new Vector3(0f, 0f, -0.25f), new Color(0.98f, 0.56f, 0.2f, 0.95f), 9, 0.35f);
+        }
+
+        private IEnumerator TrapFlashRoutine(Vector3 position)
+        {
+            GameObject flash = new("TrapFlashFx");
+            flash.transform.position = position + new Vector3(0f, 0f, -0.3f);
+            SpriteRenderer renderer = flash.AddComponent<SpriteRenderer>();
+            renderer.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite();
+            renderer.color = new Color(1f, 0.56f, 0.22f, 0.66f);
+            renderer.sortingOrder = 45;
+
+            float elapsed = 0f;
+            const float duration = 0.16f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime > 0f ? Time.deltaTime : Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                float scale = Mathf.Lerp(0.35f, 1.2f, t);
+                flash.transform.localScale = new Vector3(scale, scale, 1f);
+                Color c = renderer.color;
+                c.a = Mathf.Lerp(0.66f, 0f, t);
+                renderer.color = c;
+                yield return null;
+            }
+
+            SafeDestroy(flash);
+        }
+
+        private void SpawnWeaponTrace(Vector3 targetPosition)
+        {
+            if (!Application.isPlaying)
+            {
+                return;
+            }
+
+            StartCoroutine(WeaponTraceRoutine(transform.position + new Vector3(0f, 0f, -0.3f), targetPosition + new Vector3(0f, 0f, -0.3f)));
+        }
+
+        private IEnumerator WeaponTraceRoutine(Vector3 start, Vector3 end)
+        {
+            GameObject lineObject = new("WeaponTraceFx");
+            lineObject.transform.SetParent(transform, false);
+            LineRenderer line = lineObject.AddComponent<LineRenderer>();
+            line.positionCount = 2;
+            line.SetPosition(0, start);
+            line.SetPosition(1, end);
+            line.material = new Material(Shader.Find("Sprites/Default"));
+            line.startColor = new Color(1f, 0.86f, 0.5f, 0.9f);
+            line.endColor = new Color(1f, 0.52f, 0.32f, 0.9f);
+            line.startWidth = 0.08f;
+            line.endWidth = 0.04f;
+            line.sortingOrder = 52;
+
+            float elapsed = 0f;
+            const float duration = 0.1f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime > 0f ? Time.deltaTime : Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                Color c0 = line.startColor;
+                Color c1 = line.endColor;
+                c0.a = Mathf.Lerp(0.9f, 0f, t);
+                c1.a = Mathf.Lerp(0.9f, 0f, t);
+                line.startColor = c0;
+                line.endColor = c1;
+                yield return null;
+            }
+
+            SafeDestroy(lineObject);
+        }
+
+        private static void SpawnParticleBurst(Vector3 position, Color color, int count, float lifetime)
+        {
+            GameObject particleObject = new("DefenseBurstFx");
+            particleObject.transform.position = position;
+            ParticleSystem system = particleObject.AddComponent<ParticleSystem>();
+            ParticleSystem.MainModule main = system.main;
+            main.loop = false;
+            main.startLifetime = lifetime;
+            main.startSpeed = 1.8f;
+            main.startSize = 0.14f;
+            main.startColor = color;
+            main.maxParticles = Mathf.Clamp(count, 1, 64);
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+            ParticleSystem.EmissionModule emission = system.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[]
+            {
+                new ParticleSystem.Burst(0f, (short)Mathf.Clamp(count, 1, 64))
+            });
+
+            ParticleSystem.ShapeModule shape = system.shape;
+            shape.shapeType = ParticleSystemShapeType.Circle;
+            shape.radius = 0.12f;
+
+            ParticleSystemRenderer renderer = particleObject.GetComponent<ParticleSystemRenderer>();
+            renderer.material = new Material(Shader.Find("Sprites/Default"));
+            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.sortingOrder = 53;
+            renderer.maxParticleSize = 0.22f;
+
+            system.Play();
+            if (Application.isPlaying)
+            {
+                Object.Destroy(particleObject, lifetime + 0.5f);
             }
             else
             {
-                _statusLabel.text = string.Empty;
+                Object.DestroyImmediate(particleObject);
+            }
+        }
+
+        private static void SafeDestroy(Object target)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Object.Destroy(target);
+            }
+            else
+            {
+                Object.DestroyImmediate(target);
             }
         }
     }

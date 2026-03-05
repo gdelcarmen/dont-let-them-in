@@ -273,6 +273,7 @@ namespace DontLetThemIn.Aliens
 
             IsAlive = false;
             Died?.Invoke(this);
+            SpawnDeathPoof();
             StartCoroutine(DeathRoutine());
         }
 
@@ -285,7 +286,7 @@ namespace DontLetThemIn.Aliens
 
             IsAlive = false;
             ReachedSafeRoom?.Invoke(this);
-            Destroy(gameObject);
+            SafeDestroy(gameObject);
         }
 
         private void StepBackOneNode()
@@ -307,10 +308,10 @@ namespace DontLetThemIn.Aliens
         {
             SpriteRenderer spriteRenderer = GetComponent<SpriteRenderer>();
             Vector3 startScale = transform.localScale;
-            Vector3 endScale = startScale * 0.45f;
+            Vector3 endScale = Vector3.zero;
             Color startColor = spriteRenderer != null ? spriteRenderer.color : Color.white;
             float elapsed = 0f;
-            const float duration = 0.15f;
+            const float duration = 0.3f;
 
             while (elapsed < duration)
             {
@@ -328,7 +329,61 @@ namespace DontLetThemIn.Aliens
                 yield return null;
             }
 
-            Destroy(gameObject);
+            SafeDestroy(gameObject);
+        }
+
+        private void SpawnDeathPoof()
+        {
+            if (!Application.isPlaying)
+            {
+                return;
+            }
+
+            GameObject poofObject = new("AlienDeathPoof");
+            poofObject.transform.position = transform.position + new Vector3(0f, 0f, -0.22f);
+
+            ParticleSystem system = poofObject.AddComponent<ParticleSystem>();
+            ParticleSystem.MainModule main = system.main;
+            main.loop = false;
+            main.startLifetime = 0.26f;
+            main.startSpeed = 1.7f;
+            main.startSize = 0.16f;
+            main.startColor = new Color(0.46f, 0.95f, 0.42f, 0.95f);
+            main.maxParticles = 16;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+            ParticleSystem.EmissionModule emission = system.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 12) });
+
+            ParticleSystem.ShapeModule shape = system.shape;
+            shape.shapeType = ParticleSystemShapeType.Circle;
+            shape.radius = 0.12f;
+
+            ParticleSystemRenderer renderer = poofObject.GetComponent<ParticleSystemRenderer>();
+            renderer.material = new Material(Shader.Find("Sprites/Default"));
+            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.sortingOrder = 50;
+
+            system.Play();
+            Destroy(poofObject, 1f);
+        }
+
+        private static void SafeDestroy(UnityEngine.Object target)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(target);
+            }
+            else
+            {
+                DestroyImmediate(target);
+            }
         }
 
         private GridNode FindNearestWalkableNode(Vector3 position)

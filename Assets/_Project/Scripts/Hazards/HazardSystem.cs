@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using DontLetThemIn.Aliens;
+using DontLetThemIn.Audio;
 using DontLetThemIn.Defenses;
 using DontLetThemIn.Economy;
 using DontLetThemIn.Grid;
@@ -310,6 +311,7 @@ namespace DontLetThemIn.Hazards
 
             IsPowerSurgeTelegraphing = false;
             IsPowerSurgeActive = true;
+            AudioManager.TryPlayPowerSurge();
             foreach (DefenseInstance defense in GetActiveSmartTechDefenses())
             {
                 defense.DisableFor(powerSurgeDisableDuration, "POWER SURGE");

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using DontLetThemIn.Aliens;
+using DontLetThemIn.Audio;
 using DontLetThemIn.Defenses;
 using DontLetThemIn.Economy;
 using DontLetThemIn.Grid;
@@ -508,6 +509,8 @@ namespace DontLetThemIn.Core
 
         private void BuildPersistentSystems()
         {
+            AudioManager.EnsureExists();
+
             _hud = FindOrCreateComponent<HUDController>("HUDCanvas");
             _hud.Initialize();
             _hud.RestartRequested -= RestartRun;
@@ -699,6 +702,7 @@ namespace DontLetThemIn.Core
         {
             StopWaveCountdownRoutine();
             _hud?.HideWaveCountdown();
+            AudioManager.TryPlayWaveStart();
 
             if (_stateMachine.CurrentState == GameState.PrepPhase || _stateMachine.CurrentState == GameState.WaveClear)
             {
@@ -815,6 +819,7 @@ namespace DontLetThemIn.Core
 
             _killCount++;
             AwardScrap(alien.Data.ScrapReward + _metaScrapMagnetBonus);
+            AudioManager.TryPlayAlienDeath();
         }
 
         private void AwardScrap(int amount)
@@ -842,6 +847,7 @@ namespace DontLetThemIn.Core
 
             _safeRoomIntegrity = Mathf.Max(0, _safeRoomIntegrity - 1);
             _hud.SetIntegrity(_safeRoomIntegrity);
+            _hud.PlaySafeRoomBreachFeedback();
 
             if (_safeRoomIntegrity <= 0)
             {

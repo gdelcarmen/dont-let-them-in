@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using DontLetThemIn.Audio;
 using DontLetThemIn.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -403,6 +404,9 @@ namespace DontLetThemIn.UI
             {
                 button = buttonObject.AddComponent<Button>();
             }
+
+            button.onClick.RemoveListener(AudioManager.TryPlayUiButton);
+            button.onClick.AddListener(AudioManager.TryPlayUiButton);
 
             Text labelText = buttonObject.transform.Find("Text")?.GetComponent<Text>();
             if (labelText == null)
