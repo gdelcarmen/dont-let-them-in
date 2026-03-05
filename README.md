@@ -143,16 +143,16 @@ If Unity license secrets are not configured yet, Unity build/test jobs auto-skip
 
 ## Agent Pipeline (10 Stages)
 
-1. Floor Layout & Path System - **Complete (current scaffold)**
-2. Alien Spawning & Wave System - **In Progress (scaffolded in code, pending Unity runtime verification)**
-3. Defense Placement & Combat - Planned
-4. Hazard & Special Systems - Planned
-5. Floor Progression & Multi-Floor System - Planned
-6. Economy, Draft Picks & UI - Planned
-7. Meta Progression - Planned
-8. Asset Integration - Planned
-9. Playtesting Loop - Planned
-10. Store Prep - Planned
+1. Floor Layout & Path System - **Complete**
+2. Alien Spawning & Wave System - **Complete**
+3. Defense Placement & Combat - **Complete**
+4. Hazard & Special Systems - **Complete**
+5. Floor Progression & Multi-Floor System - **Complete**
+6. Economy, Draft Picks & UI - **Complete**
+7. Meta Progression - **Complete**
+8. Asset Integration - **Complete**
+9. Playtesting Loop - **Complete**
+10. Store Prep - **Complete**
 
 ## Design Document Reference
 

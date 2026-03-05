@@ -1005,6 +1005,9 @@ namespace DontLetThemIn.UI
             buttonRect.anchorMax = new Vector2(0.5f, 0f);
             buttonRect.pivot = new Vector2(0.5f, 0f);
 
+            // TODO: Wire interstitial ad here using Unity Ads SDK
+            // Show ad after stats display, before "Return to Menu" becomes active
+            // Also wire rewarded ad on draft pick screen for 4th card option
             GameObject adObject = new("AdPlaceholder");
             adObject.transform.SetParent(_runEndRoot.transform, false);
             RectTransform adRect = adObject.AddComponent<RectTransform>();

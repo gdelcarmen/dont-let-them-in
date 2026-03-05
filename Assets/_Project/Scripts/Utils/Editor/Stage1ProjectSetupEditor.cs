@@ -45,6 +45,16 @@ namespace DontLetThemIn.Utils.Editor
             }
 
             SessionState.SetBool(SessionKey, true);
+            EditorApplication.delayCall += EnsureProjectSetupDelayed;
+        }
+
+        private static void EnsureProjectSetupDelayed()
+        {
+            if (Application.isBatchMode || EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                return;
+            }
+
             EnsureProjectSetup();
         }
 

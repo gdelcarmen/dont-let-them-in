@@ -8,6 +8,26 @@ namespace DontLetThemIn.Utils.Editor
 {
     public static class CIBuild
     {
+        public static void BuildiOSXcode()
+        {
+            Stage1ProjectSetupEditor.EnsureProjectSetup();
+            Stage10StorePrepEditor.ApplyStage10StorePrep();
+
+            BuildPlayerOptions options = new()
+            {
+                scenes = Stage1ProjectSetupEditor.GetScenePaths().ToArray(),
+                locationPathName = "Builds/iOS",
+                target = BuildTarget.iOS,
+                options = BuildOptions.StrictMode
+            };
+
+            BuildReport report = BuildPipeline.BuildPlayer(options);
+            if (report.summary.result != BuildResult.Succeeded)
+            {
+                throw new Exception($"iOS build failed: {report.summary.result}");
+            }
+        }
+
         public static void BuildStandaloneOSX()
         {
             Stage1ProjectSetupEditor.EnsureProjectSetup();
