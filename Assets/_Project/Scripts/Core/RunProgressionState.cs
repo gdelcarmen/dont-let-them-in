@@ -31,7 +31,7 @@ namespace DontLetThemIn.Core
 
         public int CalculateStartingScrap(int baseScrap)
         {
-            int penalty = FloorsLost * 20;
+            int penalty = FloorsLost * 10;
             int result = baseScrap - penalty;
             return result > 0 ? result : 0;
         }

@@ -40,10 +40,8 @@ namespace DontLetThemIn.Grid
                         travelCost += 4f;
                     }
 
-                    if (neighbor.State == NodeState.Blocked && neighbor.HasDefense)
-                    {
-                        travelCost += 8f;
-                    }
+                    // Defensive traps occupy blocked nodes but are intended to be traversable,
+                    // so avoid adding a heavy detour penalty that causes full reroutes.
 
                     float newCost = costSoFar[current] + travelCost;
                     if (!costSoFar.TryGetValue(neighbor, out float knownCost) || newCost < knownCost)

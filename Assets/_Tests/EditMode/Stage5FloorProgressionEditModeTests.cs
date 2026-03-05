@@ -24,10 +24,10 @@ namespace DontLetThemIn.Tests.EditMode
             Assert.That(progression.CalculateStartingScrap(60), Is.EqualTo(60));
 
             progression.RegisterFloorBreach();
-            Assert.That(progression.CalculateStartingScrap(60), Is.EqualTo(40));
+            Assert.That(progression.CalculateStartingScrap(60), Is.EqualTo(50));
 
             progression.RegisterFloorBreach();
-            Assert.That(progression.CalculateStartingScrap(60), Is.EqualTo(20));
+            Assert.That(progression.CalculateStartingScrap(60), Is.EqualTo(40));
         }
 
         [Test]

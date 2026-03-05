@@ -195,11 +195,11 @@ namespace DontLetThemIn.Core
             data.name = "ShotgunMount_Runtime";
             data.DefenseName = "Shotgun Mount";
             data.Category = DefenseCategory.B;
-            data.ScrapCost = 50;
-            data.Damage = 15f;
-            data.Range = 2;
+            data.ScrapCost = 40;
+            data.Damage = 20f;
+            data.Range = 3;
             data.Uses = -1;
-            data.AttackInterval = 1.5f;
+            data.AttackInterval = 1f;
             data.Description = "Persistent turret that blasts the nearest alien in range.";
             data.BlocksPath = false;
             data.DisplayColor = new Color(0.88f, 0.22f, 0.2f, 1f);
@@ -277,11 +277,11 @@ namespace DontLetThemIn.Core
             data.name = "Roomba_Runtime";
             data.DefenseName = "Roomba";
             data.Category = DefenseCategory.D;
-            data.ScrapCost = 60;
-            data.Damage = 5f;
+            data.ScrapCost = 55;
+            data.Damage = 6f;
             data.Range = 99;
             data.Uses = -1;
-            data.AttackInterval = 0.8f;
+            data.AttackInterval = 0.7f;
             data.MoveSpeed = 2.8f;
             data.ContactRadius = 0.3f;
             data.Description = "Patrol bot that bumps aliens off-line and chips away at them.";
@@ -317,8 +317,8 @@ namespace DontLetThemIn.Core
             data.name = "Grey_Runtime";
             data.AlienName = "Grey";
             data.AlienType = AlienType.Grey;
-            data.MaxHealth = 24f;
-            data.Speed = 2f;
+            data.MaxHealth = 16f;
+            data.Speed = 1.4f;
             data.ScrapReward = 2;
             data.HasSpecialAbility = false;
             data.CanBreachWalls = false;
@@ -332,8 +332,8 @@ namespace DontLetThemIn.Core
             data.name = "Stalker_Runtime";
             data.AlienName = "Stalker";
             data.AlienType = AlienType.Stalker;
-            data.MaxHealth = 34f;
-            data.Speed = 2.6f;
+            data.MaxHealth = 24f;
+            data.Speed = 1.8f;
             data.ScrapReward = 5;
             data.HasSpecialAbility = true;
             data.CanBreachWalls = false;
@@ -347,8 +347,8 @@ namespace DontLetThemIn.Core
             data.name = "TechUnit_Runtime";
             data.AlienName = "Tech Unit";
             data.AlienType = AlienType.TechUnit;
-            data.MaxHealth = 45f;
-            data.Speed = 1.65f;
+            data.MaxHealth = 32f;
+            data.Speed = 1.2f;
             data.ScrapReward = 10;
             data.HasSpecialAbility = true;
             data.CanBreachWalls = true;
@@ -362,8 +362,8 @@ namespace DontLetThemIn.Core
             data.name = "Overlord_Runtime";
             data.AlienName = "Overlord";
             data.AlienType = AlienType.Overlord;
-            data.MaxHealth = 140f;
-            data.Speed = 1.1f;
+            data.MaxHealth = 120f;
+            data.Speed = 1f;
             data.ScrapReward = 50;
             data.HasSpecialAbility = true;
             data.CanBreachWalls = true;
@@ -392,28 +392,28 @@ namespace DontLetThemIn.Core
             {
                 CreateWave("Wave 1", 0.25f, 1.1f, new List<WaveSpawnDirective>
                 {
-                    BuildDirective(grey, 5, 0.8f, EntryPointSelection.Fixed, 0)
+                    BuildDirective(grey, 3, 0.8f, EntryPointSelection.Fixed, 0)
                 }),
                 CreateWave("Wave 2", 0.35f, 1.2f, new List<WaveSpawnDirective>
                 {
-                    BuildDirective(grey, 4, 0.55f, EntryPointSelection.RoundRobin),
-                    BuildDirective(stalker, 3, 0.65f, EntryPointSelection.RoundRobin)
+                    BuildDirective(grey, 3, 0.55f, EntryPointSelection.RoundRobin),
+                    BuildDirective(stalker, 1, 0.65f, EntryPointSelection.RoundRobin)
                 }),
                 CreateWave("Wave 3", 0.45f, 0.5f, new List<WaveSpawnDirective>
                 {
-                    BuildDirective(stalker, 4, 0.55f, EntryPointSelection.Random),
-                    BuildDirective(tech, 2, 0.9f, EntryPointSelection.Fixed, 2)
+                    BuildDirective(stalker, 2, 0.55f, EntryPointSelection.Random),
+                    BuildDirective(tech, 1, 0.9f, EntryPointSelection.Fixed, 2)
                 }),
                 CreateWave("Wave 4", 0.5f, 0.4f, new List<WaveSpawnDirective>
                 {
-                    BuildDirective(grey, 5, 0.45f, EntryPointSelection.RoundRobin),
-                    BuildDirective(stalker, 4, 0.55f, EntryPointSelection.Random),
-                    BuildDirective(tech, 2, 0.7f, EntryPointSelection.Fixed, 1)
+                    BuildDirective(grey, 3, 0.45f, EntryPointSelection.RoundRobin),
+                    BuildDirective(stalker, 2, 0.55f, EntryPointSelection.Random),
+                    BuildDirective(tech, 1, 0.7f, EntryPointSelection.Fixed, 1)
                 }),
                 CreateWave("Wave 5", 0.6f, 0.4f, new List<WaveSpawnDirective>
                 {
-                    BuildDirective(stalker, 5, 0.42f, EntryPointSelection.RoundRobin),
-                    BuildDirective(tech, 3, 0.62f, EntryPointSelection.Random)
+                    BuildDirective(stalker, 3, 0.42f, EntryPointSelection.RoundRobin),
+                    BuildDirective(tech, 2, 0.62f, EntryPointSelection.Random)
                 })
             };
         }
@@ -431,29 +431,29 @@ namespace DontLetThemIn.Core
             {
                 CreateWave("Upper Wave 1", 0.35f, 0.9f, new List<WaveSpawnDirective>
                 {
-                    BuildDirective(grey, 3, 0.45f, EntryPointSelection.RoundRobin),
-                    BuildDirective(stalker, 3, 0.45f, EntryPointSelection.RoundRobin)
+                    BuildDirective(grey, 2, 0.45f, EntryPointSelection.RoundRobin),
+                    BuildDirective(stalker, 1, 0.45f, EntryPointSelection.RoundRobin)
                 }),
                 CreateWave("Upper Wave 2", 0.4f, 0.8f, new List<WaveSpawnDirective>
                 {
-                    BuildDirective(stalker, 5, 0.4f, EntryPointSelection.Random),
-                    BuildDirective(tech, 2, 0.65f, EntryPointSelection.Fixed, 1)
+                    BuildDirective(stalker, 3, 0.4f, EntryPointSelection.Random),
+                    BuildDirective(tech, 1, 0.65f, EntryPointSelection.Fixed, 1)
                 }),
                 CreateWave("Upper Wave 3", 0.45f, 0.8f, new List<WaveSpawnDirective>
                 {
                     BuildDirective(grey, 2, 0.35f, EntryPointSelection.RoundRobin),
-                    BuildDirective(stalker, 4, 0.35f, EntryPointSelection.Random),
-                    BuildDirective(tech, 3, 0.55f, EntryPointSelection.RoundRobin)
+                    BuildDirective(stalker, 2, 0.35f, EntryPointSelection.Random),
+                    BuildDirective(tech, 1, 0.55f, EntryPointSelection.RoundRobin)
                 }),
                 CreateWave("Upper Wave 4", 0.5f, 0.7f, new List<WaveSpawnDirective>
                 {
-                    BuildDirective(stalker, 6, 0.36f, EntryPointSelection.Random),
-                    BuildDirective(tech, 3, 0.52f, EntryPointSelection.RoundRobin)
+                    BuildDirective(stalker, 3, 0.36f, EntryPointSelection.Random),
+                    BuildDirective(tech, 2, 0.52f, EntryPointSelection.RoundRobin)
                 }),
                 CreateWave("Upper Wave 5", 0.55f, 0.7f, new List<WaveSpawnDirective>
                 {
-                    BuildDirective(stalker, 6, 0.32f, EntryPointSelection.RoundRobin),
-                    BuildDirective(tech, 4, 0.45f, EntryPointSelection.Random)
+                    BuildDirective(stalker, 4, 0.32f, EntryPointSelection.RoundRobin),
+                    BuildDirective(tech, 2, 0.45f, EntryPointSelection.Random)
                 })
             };
         }
@@ -471,28 +471,28 @@ namespace DontLetThemIn.Core
             {
                 CreateWave("Attic Wave 1", 0.3f, 0.6f, new List<WaveSpawnDirective>
                 {
-                    BuildDirective(stalker, 4, 0.3f, EntryPointSelection.RoundRobin),
-                    BuildDirective(tech, 2, 0.5f, EntryPointSelection.Random)
+                    BuildDirective(stalker, 2, 0.3f, EntryPointSelection.RoundRobin),
+                    BuildDirective(tech, 1, 0.5f, EntryPointSelection.Random)
                 }),
                 CreateWave("Attic Wave 2", 0.35f, 0.55f, new List<WaveSpawnDirective>
                 {
-                    BuildDirective(stalker, 5, 0.28f, EntryPointSelection.Random),
-                    BuildDirective(tech, 3, 0.45f, EntryPointSelection.RoundRobin)
+                    BuildDirective(stalker, 3, 0.28f, EntryPointSelection.Random),
+                    BuildDirective(tech, 1, 0.45f, EntryPointSelection.RoundRobin)
                 }),
                 CreateWave("Attic Wave 3", 0.4f, 0.5f, new List<WaveSpawnDirective>
                 {
-                    BuildDirective(stalker, 6, 0.26f, EntryPointSelection.RoundRobin),
-                    BuildDirective(tech, 4, 0.4f, EntryPointSelection.Random)
+                    BuildDirective(stalker, 4, 0.26f, EntryPointSelection.RoundRobin),
+                    BuildDirective(tech, 2, 0.4f, EntryPointSelection.Random)
                 }),
                 CreateWave("Attic Wave 4", 0.45f, 0.45f, new List<WaveSpawnDirective>
                 {
-                    BuildDirective(stalker, 6, 0.24f, EntryPointSelection.Random),
-                    BuildDirective(tech, 5, 0.36f, EntryPointSelection.RoundRobin)
+                    BuildDirective(stalker, 4, 0.24f, EntryPointSelection.Random),
+                    BuildDirective(tech, 3, 0.36f, EntryPointSelection.RoundRobin)
                 }),
                 CreateWave("Attic Wave 5", 0.5f, 0.45f, new List<WaveSpawnDirective>
                 {
-                    BuildDirective(stalker, 7, 0.22f, EntryPointSelection.RoundRobin),
-                    BuildDirective(tech, 5, 0.33f, EntryPointSelection.Random)
+                    BuildDirective(stalker, 5, 0.22f, EntryPointSelection.RoundRobin),
+                    BuildDirective(tech, 3, 0.33f, EntryPointSelection.Random)
                 })
             };
         }

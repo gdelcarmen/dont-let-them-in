@@ -33,9 +33,9 @@ namespace DontLetThemIn.Core
         [SerializeField] private WaveConfig[] atticWaveConfigs;
 
         [Header("Run Settings")]
-        [SerializeField] private int startingScrap = 60;
+        [SerializeField] private int startingScrap = 75;
         [SerializeField] private int startingSafeRoomIntegrity = 10;
-        [SerializeField] private int passiveWaveCompletionScrap = 3;
+        [SerializeField] private int passiveWaveCompletionScrap = 5;
         [SerializeField] private bool resetScrapAtEachFloorStart = true;
         [SerializeField] private float prepPhaseDurationSeconds = 15f;
         [SerializeField] private float floorTransitionDelaySeconds = 1.25f;
@@ -46,6 +46,7 @@ namespace DontLetThemIn.Core
         private readonly Dictionary<string, int> _defenseKillCounts = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<DefenseData> _runAvailableDefenses = new();
         private readonly List<DefenseData> _runDefenseCatalog = new();
+        private readonly Dictionary<string, int> _currentFloorDefensePlacementCounts = new(StringComparer.OrdinalIgnoreCase);
 
         private NodeGraph _graph;
         private RunProgressionState _runProgression;
@@ -85,6 +86,18 @@ namespace DontLetThemIn.Core
         private int _metaWeakPointHitsRequired = 1;
         private int _currentLoop = 1;
         private int _highestLoopReached = 1;
+        private PlaytestRuntimeConfig _playtestConfig;
+        private PlaytestRunLogger _playtestLogger;
+        private PlaytestAutoController _playtestAutoController;
+        private int _currentFloorScrapEarned;
+        private int _currentFloorScrapSpent;
+        private int _currentWaveAliensSpawned;
+        private int _currentWaveAliensKilled;
+        private int _currentWaveAliensBreached;
+        private bool _currentFloorOutcomeLogged;
+        private float _currentFloorStartTime;
+        private int _lastObservedScrap;
+        private bool _suppressScrapDeltaTracking;
 
         public GameState CurrentState => _stateMachine.CurrentState;
 
@@ -124,20 +137,33 @@ namespace DontLetThemIn.Core
 
         public int SalvageEarnedThisRun => _salvageEarnedThisRun;
 
+        public NodeGraph CurrentGraph => _graph;
+
+        public DefensePlacementController DefensePlacementController => _defensePlacement;
+
+        public int CurrentWave => _waveSpawner != null ? _waveSpawner.CurrentWave : 0;
+
         private void Start()
         {
             Application.runInBackground = true;
             Time.timeScale = 1f;
 
+            _playtestConfig = PlaytestRuntimeConfig.Load();
             BootstrapRuntimeData();
             NormalizeEconomyData();
             BuildRunDefenseData();
+            if (_playtestConfig.EnablePlaytestMode && _playtestConfig.ClearMetaProgression)
+            {
+                MetaProgressionService.ResetAllDataForTests();
+            }
+
             _metaProgression = MetaProgressionService.Load();
             ConfigureRunModeAndTierFromLaunchConfig();
             ApplyMetaUpgradeConfiguration();
             _draftSystem = new DraftSystem(DraftSystem.CreateDefaultPool(_runDefenseCatalog));
 
             BuildPersistentSystems();
+            ConfigurePlaytestModeIfEnabled();
 
             _runProgression = new RunProgressionState(Mathf.Max(1, floorLayouts.Length), _runMode == RunMode.Endless);
             _currentLoop = 1;
@@ -191,7 +217,12 @@ namespace DontLetThemIn.Core
             _defensePlacement.TickDefenses(_waveSpawner.ActiveAliens);
             UpdateDebugPaths();
 
-            if (_waveSpawner.HasCompletedAllWaves &&
+            bool canResolveFloorClear =
+                _stateMachine.CurrentState == GameState.WaveActive ||
+                _stateMachine.CurrentState == GameState.WaveClear;
+
+            if (canResolveFloorClear &&
+                _waveSpawner.HasCompletedAllWaves &&
                 _waveSpawner.ActiveAliens.Count == 0 &&
                 _stateMachine.CurrentState != GameState.FloorClear &&
                 _stateMachine.CurrentState != GameState.RunEnd &&
@@ -325,7 +356,10 @@ namespace DontLetThemIn.Core
                 floorDisplayNames = new[] { "Ground Floor", "Upper Floor", "Attic" };
             }
 
-            if (availableDefenses == null || availableDefenses.Length < 4)
+            int nonNullAvailableDefenseCount = availableDefenses != null
+                ? availableDefenses.Count(defense => defense != null)
+                : 0;
+            if (availableDefenses == null || availableDefenses.Length < 4 || nonNullAvailableDefenseCount < 4)
             {
                 availableDefenses = new[]
                 {
@@ -421,11 +455,11 @@ namespace DontLetThemIn.Core
             {
                 "Tripwire Trap" => 15,
                 "Paint Can Pendulum" => 20,
-                "Shotgun Mount" => 50,
+                "Shotgun Mount" => 40,
                 "Arc Launcher" => 45,
                 "Dog" => 50,
                 "Scout Ferret" => 50,
-                "Roomba" => 60,
+                "Roomba" => 55,
                 "Camera Network" => 55,
                 _ => defense.ScrapCost
             };
@@ -522,6 +556,7 @@ namespace DontLetThemIn.Core
             _scrapManager = scrapComponent.Initialize(startingScrap);
             _scrapManager.ScrapChanged -= OnScrapChanged;
             _scrapManager.ScrapChanged += OnScrapChanged;
+            _lastObservedScrap = _scrapManager.CurrentScrap;
             _hud.SetScrap(_scrapManager.CurrentScrap);
 
             _waveSpawner = FindOrCreateComponent<WaveSpawner>("WaveSpawner");
@@ -550,6 +585,9 @@ namespace DontLetThemIn.Core
             _killCount = 0;
             _totalScrapEarned = 0;
             _safeRoomIntegrity = startingSafeRoomIntegrity;
+            _currentFloorScrapEarned = 0;
+            _currentFloorScrapSpent = 0;
+            _currentFloorDefensePlacementCounts.Clear();
             _defenseKillCounts.Clear();
             _hud.SetIntegrity(_safeRoomIntegrity);
             _hud.SetStatus(string.Empty);
@@ -625,12 +663,19 @@ namespace DontLetThemIn.Core
             if (resetScrapAtEachFloorStart || CurrentFloorIndex == 0)
             {
                 _currentFloorStartingScrap = CalculateStartingScrapForCurrentFloor();
-                _scrapManager.SetCurrentScrap(_currentFloorStartingScrap);
+                SetScrapWithoutTracking(_currentFloorStartingScrap);
             }
             else
             {
                 _currentFloorStartingScrap = _scrapManager.CurrentScrap;
             }
+
+            _currentFloorScrapEarned = 0;
+            _currentFloorScrapSpent = 0;
+            _currentFloorDefensePlacementCounts.Clear();
+            _currentFloorOutcomeLogged = false;
+            _currentFloorStartTime = Time.unscaledTime;
+            _lastObservedScrap = _scrapManager.CurrentScrap;
 
             _hud.SetScrap(_scrapManager.CurrentScrap);
             _hud.SetStatus(status);
@@ -690,6 +735,20 @@ namespace DontLetThemIn.Core
 
         private void OnScrapChanged(int value)
         {
+            if (!_suppressScrapDeltaTracking)
+            {
+                int delta = value - _lastObservedScrap;
+                if (delta > 0)
+                {
+                    _currentFloorScrapEarned += delta;
+                }
+                else if (delta < 0)
+                {
+                    _currentFloorScrapSpent += -delta;
+                }
+            }
+
+            _lastObservedScrap = value;
             _hud?.SetScrap(value);
         }
 
@@ -703,6 +762,10 @@ namespace DontLetThemIn.Core
             StopWaveCountdownRoutine();
             _hud?.HideWaveCountdown();
             AudioManager.TryPlayWaveStart();
+            _defensePlacement?.SetPlacementEnabled(false);
+            _currentWaveAliensSpawned = 0;
+            _currentWaveAliensKilled = 0;
+            _currentWaveAliensBreached = 0;
 
             if (_stateMachine.CurrentState == GameState.PrepPhase || _stateMachine.CurrentState == GameState.WaveClear)
             {
@@ -728,13 +791,25 @@ namespace DontLetThemIn.Core
 
             AwardScrap(passiveWaveCompletionScrap);
             _hud?.SetStatus($"Wave {wave}/{total} cleared. +{passiveWaveCompletionScrap} Scrap");
+            _playtestLogger?.RecordWave(
+                CurrentFloorIndex,
+                ResolveFloorDisplayNameWithLoop(CurrentFloorIndex),
+                wave,
+                total,
+                _currentWaveAliensSpawned,
+                _currentWaveAliensKilled,
+                _currentWaveAliensBreached,
+                _scrapManager != null ? _scrapManager.CurrentScrap : 0,
+                BuildActiveDefenseCounts());
 
             if (wave < total)
             {
+                _defensePlacement?.SetPlacementEnabled(true);
                 StartWaveCountdown(waveConfig != null ? waveConfig.PostWaveDelay : 0f);
             }
             else
             {
+                _defensePlacement?.SetPlacementEnabled(false);
                 _hud?.HideWaveCountdown();
             }
         }
@@ -802,6 +877,7 @@ namespace DontLetThemIn.Core
                 return;
             }
 
+            _currentWaveAliensSpawned++;
             alien.Damaged += OnAlienDamaged;
         }
 
@@ -818,6 +894,7 @@ namespace DontLetThemIn.Core
             }
 
             _killCount++;
+            _currentWaveAliensKilled++;
             AwardScrap(alien.Data.ScrapReward + _metaScrapMagnetBonus);
             AudioManager.TryPlayAlienDeath();
         }
@@ -845,6 +922,7 @@ namespace DontLetThemIn.Core
                 return;
             }
 
+            _currentWaveAliensBreached++;
             _safeRoomIntegrity = Mathf.Max(0, _safeRoomIntegrity - 1);
             _hud.SetIntegrity(_safeRoomIntegrity);
             _hud.PlaySafeRoomBreachFeedback();
@@ -869,6 +947,7 @@ namespace DontLetThemIn.Core
             _defensePlacement?.SetPlacementEnabled(false);
             _stateMachine.ForceState(GameState.FloorClear);
             _hud?.SetStatus("Floor Cleared!");
+            LogCurrentFloorOutcome(cleared: true);
 
             int floorBeforeAdvance = CurrentFloorIndex;
             bool hasNextFloor = _runProgression.AdvanceAfterFloorClear();
@@ -954,6 +1033,7 @@ namespace DontLetThemIn.Core
             _defensePlacement?.SetPlacementEnabled(false);
             _waveSpawner?.AbortCurrentWavesAndAliens();
             _stateMachine.ForceState(GameState.FloorLost);
+            LogCurrentFloorOutcome(cleared: false);
 
             FloorBreachOutcome outcome = _runProgression.RegisterFloorBreach();
             if (outcome == FloorBreachOutcome.RunFailed)
@@ -964,7 +1044,7 @@ namespace DontLetThemIn.Core
             }
 
             _currentFloorStartingScrap = CalculateStartingScrapForCurrentFloor();
-            _scrapManager.SetCurrentScrap(_currentFloorStartingScrap);
+            SetScrapWithoutTracking(_currentFloorStartingScrap);
             _hud.SetStatus("Floor Lost - Retreating Upstairs");
 
             StopTransitionRoutine();
@@ -990,6 +1070,10 @@ namespace DontLetThemIn.Core
             StopActiveFloorCoroutines();
             _waveSpawner?.AbortCurrentWavesAndAliens();
             _defensePlacement?.SetPlacementEnabled(false);
+            if (!_currentFloorOutcomeLogged)
+            {
+                LogCurrentFloorOutcome(cleared: survived);
+            }
 
             bool flawlessCampaignRun = _runMode == RunMode.Campaign &&
                                        survived &&
@@ -1029,6 +1113,15 @@ namespace DontLetThemIn.Core
                 _metaProgression?.SalvagePoints ?? 0,
                 _runMode == RunMode.Endless ? _highestLoopReached : 0,
                 ReturnToMainMenu);
+
+            _playtestLogger?.CompleteRun(
+                survived,
+                FloorsCleared,
+                FloorsLost,
+                _killCount,
+                _totalScrapEarned,
+                _runMode == RunMode.Endless ? _highestLoopReached : 1,
+                _metaProgression != null ? _metaProgression.PurchasedUpgradeIds : new List<string>());
         }
 
         private string ResolveBestDefenseName()
@@ -1045,6 +1138,16 @@ namespace DontLetThemIn.Core
 
             defense.AlienEliminated -= OnDefenseAlienEliminated;
             defense.AlienEliminated += OnDefenseAlienEliminated;
+
+            if (defense.Data != null && !string.IsNullOrWhiteSpace(defense.Data.DefenseName))
+            {
+                if (!_currentFloorDefensePlacementCounts.TryGetValue(defense.Data.DefenseName, out int count))
+                {
+                    count = 0;
+                }
+
+                _currentFloorDefensePlacementCounts[defense.Data.DefenseName] = count + 1;
+            }
         }
 
         private void OnDefenseAlienEliminated(DefenseInstance defense, AlienBase _)
@@ -1115,6 +1218,109 @@ namespace DontLetThemIn.Core
             }
 
             Destroy(popup);
+        }
+
+        private void ConfigurePlaytestModeIfEnabled()
+        {
+            if (_playtestConfig == null || !_playtestConfig.EnablePlaytestMode)
+            {
+                return;
+            }
+
+            ConfigureDebugTimings(
+                _playtestConfig.PrepDurationSeconds,
+                _playtestConfig.FloorTransitionSeconds,
+                _playtestConfig.AutoSelectDraft);
+
+            _playtestLogger = new PlaytestRunLogger(
+                _playtestConfig,
+                _runMode,
+                _campaignTier,
+                _metaProgression != null ? _metaProgression.PurchasedUpgradeIds : new List<string>());
+
+            _playtestAutoController = GetComponent<PlaytestAutoController>();
+            if (_playtestAutoController == null)
+            {
+                _playtestAutoController = gameObject.AddComponent<PlaytestAutoController>();
+            }
+
+            _playtestAutoController.Initialize(this, _playtestConfig.ResolveStrategy());
+            Debug.Log($"PLAYTEST_MODE_ENABLED::strategy={_playtestConfig.ResolveStrategy()}::label={_playtestConfig.RunLabel}");
+        }
+
+        private void SetScrapWithoutTracking(int amount)
+        {
+            if (_scrapManager == null)
+            {
+                return;
+            }
+
+            _suppressScrapDeltaTracking = true;
+            _scrapManager.SetCurrentScrap(Mathf.Max(0, amount));
+            _suppressScrapDeltaTracking = false;
+            _lastObservedScrap = _scrapManager.CurrentScrap;
+        }
+
+        private void LogCurrentFloorOutcome(bool cleared)
+        {
+            if (_currentFloorOutcomeLogged)
+            {
+                return;
+            }
+
+            _currentFloorOutcomeLogged = true;
+            _playtestLogger?.RecordFloor(
+                CurrentFloorIndex,
+                ResolveFloorDisplayNameWithLoop(CurrentFloorIndex),
+                cleared,
+                _currentFloorScrapEarned,
+                _currentFloorScrapSpent,
+                Mathf.Max(0f, Time.unscaledTime - _currentFloorStartTime),
+                BuildNamedCounts(_currentFloorDefensePlacementCounts));
+        }
+
+        private List<PlaytestNamedCount> BuildActiveDefenseCounts()
+        {
+            Dictionary<string, int> counts = new(StringComparer.OrdinalIgnoreCase);
+            if (_defensePlacement != null)
+            {
+                foreach (DefenseInstance defense in _defensePlacement.Defenses)
+                {
+                    if (defense == null || defense.IsConsumed || defense.Data == null || string.IsNullOrWhiteSpace(defense.Data.DefenseName))
+                    {
+                        continue;
+                    }
+
+                    if (!counts.TryGetValue(defense.Data.DefenseName, out int current))
+                    {
+                        current = 0;
+                    }
+
+                    counts[defense.Data.DefenseName] = current + 1;
+                }
+            }
+
+            return BuildNamedCounts(counts);
+        }
+
+        private static List<PlaytestNamedCount> BuildNamedCounts(Dictionary<string, int> counts)
+        {
+            List<PlaytestNamedCount> results = new();
+            if (counts == null)
+            {
+                return results;
+            }
+
+            foreach (KeyValuePair<string, int> pair in counts.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                results.Add(new PlaytestNamedCount
+                {
+                    Name = pair.Key,
+                    Count = Mathf.Max(0, pair.Value)
+                });
+            }
+
+            return results;
         }
 
         private FloorLayout GetCurrentFloorLayout()

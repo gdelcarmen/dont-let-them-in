@@ -1,4 +1,5 @@
 using System.Collections;
+using System.IO;
 using DontLetThemIn.Aliens;
 using DontLetThemIn.Core;
 using DontLetThemIn.Defenses;
@@ -17,6 +18,18 @@ namespace DontLetThemIn.Tests.PlayMode
 {
     public sealed class Stage5FloorProgressionPlayModeTests
     {
+        [SetUp]
+        public void SetUp()
+        {
+            DisablePlaytestModeConfig();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            DisablePlaytestModeConfig();
+        }
+
         [UnityTest]
         public IEnumerator CompleteGroundFloor_TransitionsToUpperFloor()
         {
@@ -48,7 +61,7 @@ namespace DontLetThemIn.Tests.PlayMode
 
             Assert.That(manager.FloorsLost, Is.EqualTo(1));
             Assert.That(manager.CurrentFloorName, Is.EqualTo("Upper Floor"));
-            Assert.That(manager.CurrentScrap, Is.EqualTo(40));
+            Assert.That(manager.CurrentScrap, Is.EqualTo(65));
 
             yield return CleanupGeneratedSceneObjects();
         }
@@ -130,6 +143,7 @@ namespace DontLetThemIn.Tests.PlayMode
 
         private static IEnumerator CleanupGeneratedSceneObjects()
         {
+            DestroyComponents<GameManager>();
             DestroyComponents<AlienBase>();
             DestroyComponents<DefenseInstance>();
             DestroyComponents<FloorRenderer>();
@@ -156,6 +170,29 @@ namespace DontLetThemIn.Tests.PlayMode
                     Object.Destroy(component.gameObject);
                 }
             }
+        }
+
+        private static void DisablePlaytestModeConfig()
+        {
+            PlaytestRuntimeConfig config = new()
+            {
+                EnablePlaytestMode = false,
+                Strategy = "Balanced",
+                RunLabel = "Tests",
+                ClearMetaProgression = false,
+                PrepDurationSeconds = 1.5f,
+                FloorTransitionSeconds = 0.35f,
+                AutoSelectDraft = false
+            };
+
+            string path = PlaytestRuntimeConfig.ConfigFilePath;
+            string directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(path, JsonUtility.ToJson(config, true));
         }
     }
 }

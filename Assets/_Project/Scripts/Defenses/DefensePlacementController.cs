@@ -48,6 +48,8 @@ namespace DontLetThemIn.Defenses
                 ? _availableDefenses[_selectedDefenseIndex]
                 : null;
 
+        public IReadOnlyList<DefenseData> AvailableDefenses => _availableDefenses;
+
         public event System.Action<DefenseInstance> DefensePlaced;
 
         public bool IsPlacementEnabled => _placementEnabled;
@@ -451,6 +453,29 @@ namespace DontLetThemIn.Defenses
             _selectedDefenseIndex = Mathf.Clamp(index, 0, _availableDefenses.Count - 1);
             _barricadeMode = false;
             RefreshPaletteVisuals();
+        }
+
+        public bool SelectDefenseByName(string defenseName)
+        {
+            if (string.IsNullOrWhiteSpace(defenseName))
+            {
+                return false;
+            }
+
+            for (int i = 0; i < _availableDefenses.Count; i++)
+            {
+                DefenseData defense = _availableDefenses[i];
+                if (defense == null ||
+                    !string.Equals(defense.DefenseName, defenseName, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                SelectDefense(i);
+                return true;
+            }
+
+            return false;
         }
 
         public void ToggleBarricadeMode()

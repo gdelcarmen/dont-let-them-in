@@ -34,6 +34,11 @@ namespace DontLetThemIn.Utils.Editor
 
         static Stage1ProjectSetupEditor()
         {
+            if (Application.isBatchMode)
+            {
+                return;
+            }
+
             if (SessionState.GetBool(SessionKey, false))
             {
                 return;

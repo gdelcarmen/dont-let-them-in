@@ -127,9 +127,9 @@ namespace DontLetThemIn.Tests.EditMode
             RunProgressionState progression = new(3);
             Assert.That(progression.CalculateStartingScrap(60), Is.EqualTo(60));
             progression.RegisterFloorBreach();
-            Assert.That(progression.CalculateStartingScrap(60), Is.EqualTo(40));
+            Assert.That(progression.CalculateStartingScrap(60), Is.EqualTo(50));
             progression.RegisterFloorBreach();
-            Assert.That(progression.CalculateStartingScrap(60), Is.EqualTo(20));
+            Assert.That(progression.CalculateStartingScrap(60), Is.EqualTo(40));
 
             AlienData grey = Stage1DataFactory.CreateGreyAlien();
             AlienData stalker = Stage1DataFactory.CreateStalkerAlien();

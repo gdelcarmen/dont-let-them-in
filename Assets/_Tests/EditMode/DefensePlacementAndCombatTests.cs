@@ -177,7 +177,7 @@ namespace DontLetThemIn.Tests.EditMode
             IReadOnlyCollection<AlienBase> aliens = new[] { nearAlien, farAlien };
             controller.TickDefenses(aliens);
 
-            Assert.That(nearAlien.CurrentHealth, Is.EqualTo(85f).Within(0.01f));
+            Assert.That(nearAlien.CurrentHealth, Is.EqualTo(80f).Within(0.01f));
             Assert.That(farAlien.CurrentHealth, Is.EqualTo(100f).Within(0.01f));
 
             CleanupAll(cameraObject, root, controller.gameObject, nearObject, farObject, weapon, nearData, farData);

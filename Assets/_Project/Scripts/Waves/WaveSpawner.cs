@@ -54,6 +54,9 @@ namespace DontLetThemIn.Waves
             _waveConfigs = waveConfigs;
             _defaultAlien = defaultAlien;
             _nextRoundRobinEntryIndex = 0;
+            HasCompletedAllWaves = false;
+            CurrentWave = 0;
+            TotalSpawned = 0;
         }
 
         public void StartWaves()

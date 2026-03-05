@@ -18,6 +18,12 @@ namespace DontLetThemIn.Tests.PlayMode
 {
     public sealed class Stage4HazardsPlayModeTests
     {
+        [SetUp]
+        public void SetUp()
+        {
+            Application.runInBackground = true;
+        }
+
         [UnityTest]
         public IEnumerator PowerSurge_TriggersAndStunsTechDefenses_WhenFourArePlaced()
         {

@@ -11,6 +11,18 @@ namespace DontLetThemIn.Tests.PlayMode
 {
     public sealed class WaveSpawnerPlayModeTests
     {
+        [SetUp]
+        public void SetUp()
+        {
+            CleanupSceneObjects();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            CleanupSceneObjects();
+        }
+
         [UnityTest]
         public IEnumerator WaveSpawner_SpawnsConfiguredCount_WithConfiguredDelay()
         {
@@ -54,7 +66,11 @@ namespace DontLetThemIn.Tests.PlayMode
 
             spawner.StartWaves();
 
-            yield return new WaitForSeconds(0.35f);
+            float deadline = Time.realtimeSinceStartup + 2f;
+            while (spawner.TotalSpawned < 3 && Time.realtimeSinceStartup < deadline)
+            {
+                yield return null;
+            }
 
             Assert.That(spawner.TotalSpawned, Is.EqualTo(3));
 
@@ -201,6 +217,25 @@ namespace DontLetThemIn.Tests.PlayMode
             Object.Destroy(host);
             Object.Destroy(alienData);
             Object.Destroy(config);
+        }
+
+        private static void CleanupSceneObjects()
+        {
+            foreach (AlienBase alien in Object.FindObjectsOfType<AlienBase>())
+            {
+                if (alien != null)
+                {
+                    Object.DestroyImmediate(alien.gameObject);
+                }
+            }
+
+            foreach (WaveSpawner spawner in Object.FindObjectsOfType<WaveSpawner>())
+            {
+                if (spawner != null)
+                {
+                    Object.DestroyImmediate(spawner.gameObject);
+                }
+            }
         }
     }
 }

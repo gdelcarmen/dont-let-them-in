@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-03-05T14:52:02Z",
-  "pipeline_stage": "stage8_asset_integration",
-  "action": "integrate_visual_assets_effects_and_audio_system",
+  "timestamp": "2026-03-05T18:55:00Z",
+  "pipeline_stage": "stage9_playtesting_balance",
+  "action": "instrument_playtest_runs_and_apply_balance_tuning",
   "tool_used": "unity_mcp",
-  "outcome": "success",
-  "retry_count": 2,
+  "outcome": "partial_success",
+  "retry_count": 4,
   "human_intervention_required": false,
   "intervention_reason": "",
-  "notes": "Implemented Stage 8 on branch codex/stage8-asset-integration. Replaced placeholder runtime visuals with stylized floor treatment (warm room/hallway palettes, entry glow overlays, safe-room highlight, weak-point crack/barricade overlays, and decorative furniture silhouettes) in FloorRenderer. Expanded RuntimeSpriteFactory with circle/soft-circle/triangle/paper sprites for compositional art across world and UI. Upgraded alien silhouettes per type: Grey large-head profile, ghostly shimmer Stalker reveal behavior, TechUnit with pulsing hack device, and larger red Overlord silhouette accents. Upgraded defense visuals and palette styling in DefensePlacementController: paint can trap, shotgun mount, dog, and roomba iconography with warm card-like buttons. Added combat/event polish in DefenseInstance and AlienBase: trap flash + burst, weapon trace flash, dog/shotgun/roomba audio hooks, and alien 0.3s shrink death with green poof. Replaced AudioManager with persistent service providing wired placeholder music/SFX hooks (trap, death, shotgun, roomba loop, dog bark, UI click, wave start, power surge) and edit-mode-safe lifecycle handling. Added hazard surge audio trigger, safe-room breach HUD flash + shake feedback, parchment-tinted HUD styling, draft card paper styling with accent bars, and UI click wiring across menu/meta/HUD flows. Verification via Unity MCP: compilation errors 0; EditMode tests passed 29/29; PlayMode tests passed 18/18; play-mode smoke run produced zero console errors."
+  "notes": "Added/used structured playtest logging (wave/floor/run) and gathered Stage9A simulation data from playtest_logs.ndjson. Baseline campaign outcomes: TrapHeavy defeat (kills 4, scrap 38), Balanced defeat (kills 16, scrap 84), TechHeavy defeat (kills 2, scrap 23), all with floorsCleared=0 and floorsLost=2. Applied balance pass to runtime and ScriptableObject data: passive wave scrap +1 (4->5), reduced Grey/Stalker/TechUnit HP+speed, increased Shotgun cadence (1.2->1.0), increased Roomba throughput (damage 5->6, interval 0.8->0.7), and reduced wave counts across Ground/Upper/Attic while preserving progression pressure. Documented all changes/rationales in docs/balance_log.md. Final post-change verification playthroughs and full MCP test reruns were blocked by Unity MCP transport/HTTP bridge instability (server endpoint unavailable or failing to attach in-session)."
 }

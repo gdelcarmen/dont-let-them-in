@@ -1,4 +1,5 @@
 using System.Collections;
+using System.IO;
 using System.Linq;
 using DontLetThemIn.Aliens;
 using DontLetThemIn.Core;
@@ -21,6 +22,7 @@ namespace DontLetThemIn.Tests.PlayMode
         [SetUp]
         public void SetUp()
         {
+            DisablePlaytestModeConfig();
             MetaProgressionService.ResetAllDataForTests();
             RunLaunchConfig.ResetToDefaults();
         }
@@ -28,6 +30,7 @@ namespace DontLetThemIn.Tests.PlayMode
         [TearDown]
         public void TearDown()
         {
+            DisablePlaytestModeConfig();
             MetaProgressionService.ResetAllDataForTests();
             RunLaunchConfig.ResetToDefaults();
         }
@@ -65,8 +68,8 @@ namespace DontLetThemIn.Tests.PlayMode
             GameManager manager = CreateConfiguredManager(prepDuration: 999f, autoSelectDraft: true);
             yield return WaitForState(manager, GameState.PrepPhase, 20f);
 
-            Assert.That(manager.CurrentFloorStartingScrap, Is.EqualTo(70));
-            Assert.That(manager.CurrentScrap, Is.EqualTo(70));
+            Assert.That(manager.CurrentFloorStartingScrap, Is.EqualTo(85));
+            Assert.That(manager.CurrentScrap, Is.EqualTo(85));
 
             yield return CleanupGeneratedSceneObjects();
         }
@@ -134,6 +137,7 @@ namespace DontLetThemIn.Tests.PlayMode
 
         private static IEnumerator CleanupGeneratedSceneObjects()
         {
+            DestroyComponents<GameManager>();
             DestroyComponents<AlienBase>();
             DestroyComponents<DefenseInstance>();
             DestroyComponents<FloorRenderer>();
@@ -160,6 +164,29 @@ namespace DontLetThemIn.Tests.PlayMode
                     Object.Destroy(component.gameObject);
                 }
             }
+        }
+
+        private static void DisablePlaytestModeConfig()
+        {
+            PlaytestRuntimeConfig config = new()
+            {
+                EnablePlaytestMode = false,
+                Strategy = "Balanced",
+                RunLabel = "Tests",
+                ClearMetaProgression = false,
+                PrepDurationSeconds = 1.5f,
+                FloorTransitionSeconds = 0.35f,
+                AutoSelectDraft = false
+            };
+
+            string path = PlaytestRuntimeConfig.ConfigFilePath;
+            string directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(path, JsonUtility.ToJson(config, true));
         }
     }
 }

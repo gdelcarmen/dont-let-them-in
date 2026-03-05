@@ -1,4 +1,5 @@
 using System.Collections;
+using System.IO;
 using System.Linq;
 using DontLetThemIn.Core;
 using DontLetThemIn.Defenses;
@@ -19,6 +20,18 @@ namespace DontLetThemIn.Tests.PlayMode
 {
     public sealed class Stage6EconomyDraftPlayModeTests
     {
+        [SetUp]
+        public void SetUp()
+        {
+            DisablePlaytestModeConfig();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            DisablePlaytestModeConfig();
+        }
+
         [UnityTest]
         public IEnumerator CompleteFloor_ShowsDraftPickWithThreeCards()
         {
@@ -45,6 +58,7 @@ namespace DontLetThemIn.Tests.PlayMode
             yield return WaitForState(manager, GameState.PrepPhase, 20f);
 
             int defenseCountBefore = manager.AvailableDefenseCount;
+            int baselineStartingScrap = manager.CurrentFloorStartingScrap;
             manager.DebugForceFloorClear();
             yield return WaitForState(manager, GameState.DraftPick, 20f);
 
@@ -109,7 +123,7 @@ namespace DontLetThemIn.Tests.PlayMode
                 case DraftOfferType.Perk:
                     if (selectedOffer.PerkType == DraftPerkType.BonusStartingScrap)
                     {
-                        int expectedStartingScrap = 60 + Mathf.Max(10, selectedOffer.PerkAmount);
+                        int expectedStartingScrap = baselineStartingScrap + Mathf.Max(10, selectedOffer.PerkAmount);
                         Assert.That(manager.CurrentFloorStartingScrap, Is.EqualTo(expectedStartingScrap));
                     }
 
@@ -194,6 +208,7 @@ namespace DontLetThemIn.Tests.PlayMode
 
         private static IEnumerator CleanupGeneratedSceneObjects()
         {
+            DestroyComponents<GameManager>();
             DestroyComponents<WaveSpawner>();
             DestroyComponents<DefensePlacementController>();
             DestroyComponents<HazardSystem>();
@@ -218,6 +233,29 @@ namespace DontLetThemIn.Tests.PlayMode
                     Object.Destroy(component.gameObject);
                 }
             }
+        }
+
+        private static void DisablePlaytestModeConfig()
+        {
+            PlaytestRuntimeConfig config = new()
+            {
+                EnablePlaytestMode = false,
+                Strategy = "Balanced",
+                RunLabel = "Tests",
+                ClearMetaProgression = false,
+                PrepDurationSeconds = 1.5f,
+                FloorTransitionSeconds = 0.35f,
+                AutoSelectDraft = false
+            };
+
+            string path = PlaytestRuntimeConfig.ConfigFilePath;
+            string directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(path, JsonUtility.ToJson(config, true));
         }
     }
 }

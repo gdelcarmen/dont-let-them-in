@@ -246,7 +246,11 @@ namespace DontLetThemIn.Hazards
             int nearestDistance = int.MaxValue;
             foreach (DefenseInstance defense in _placement.Defenses)
             {
-                if (defense == null || defense.IsConsumed || defense.Data == null || defense.Node == null)
+                if (defense == null ||
+                    defense.IsConsumed ||
+                    !defense.IsOperational ||
+                    defense.Data == null ||
+                    defense.Node == null)
                 {
                     continue;
                 }
@@ -343,7 +347,8 @@ namespace DontLetThemIn.Hazards
                 return;
             }
 
-            foreach (AlienBase alien in _waveSpawner.ActiveAliens)
+            AlienBase[] activeAliens = _waveSpawner.ActiveAliens.ToArray();
+            foreach (AlienBase alien in activeAliens)
             {
                 if (alien?.Data == null || !alien.IsAlive || !alien.Data.CanBreachWalls || alien.CurrentNode == null)
                 {
@@ -392,7 +397,8 @@ namespace DontLetThemIn.Hazards
         {
             UpdateHackChannels();
 
-            foreach (TechUnitAlien techUnit in _waveSpawner.ActiveAliens.OfType<TechUnitAlien>())
+            TechUnitAlien[] techUnits = _waveSpawner.ActiveAliens.OfType<TechUnitAlien>().ToArray();
+            foreach (TechUnitAlien techUnit in techUnits)
             {
                 if (techUnit == null || !techUnit.IsAlive || techUnit.CurrentNode == null)
                 {
@@ -462,7 +468,11 @@ namespace DontLetThemIn.Hazards
                     continue;
                 }
 
-                if (channel.Alien == null || !channel.Alien.IsAlive || channel.Defense == null || channel.Defense.IsConsumed)
+                if (channel.Alien == null ||
+                    !channel.Alien.IsAlive ||
+                    channel.Defense == null ||
+                    channel.Defense.IsConsumed ||
+                    !channel.Defense.IsOperational)
                 {
                     EndHackChannel(channel, completed: false);
                     continue;
@@ -516,7 +526,8 @@ namespace DontLetThemIn.Hazards
 
         private void TickStalkerVisibility()
         {
-            foreach (StalkerAlien stalker in _waveSpawner.ActiveAliens.OfType<StalkerAlien>())
+            StalkerAlien[] stalkers = _waveSpawner.ActiveAliens.OfType<StalkerAlien>().ToArray();
+            foreach (StalkerAlien stalker in stalkers)
             {
                 if (stalker == null || !stalker.IsAlive || stalker.CurrentNode == null)
                 {
@@ -575,7 +586,8 @@ namespace DontLetThemIn.Hazards
 
                 zone.NextTick = now + collateralTickInterval;
 
-                foreach (AlienBase alien in _waveSpawner.ActiveAliens)
+                AlienBase[] activeAliens = _waveSpawner.ActiveAliens.ToArray();
+                foreach (AlienBase alien in activeAliens)
                 {
                     if (alien == null || !alien.IsAlive || alien.CurrentNode == null)
                     {
@@ -717,7 +729,8 @@ namespace DontLetThemIn.Hazards
 
         private void TriggerOverlordWaveAbility()
         {
-            foreach (AlienBase alien in _waveSpawner.ActiveAliens)
+            AlienBase[] activeAliens = _waveSpawner.ActiveAliens.ToArray();
+            foreach (AlienBase alien in activeAliens)
             {
                 if (alien == null || !alien.IsAlive)
                 {
@@ -747,7 +760,8 @@ namespace DontLetThemIn.Hazards
                 return;
             }
 
-            foreach (AlienBase alien in _waveSpawner.ActiveAliens)
+            AlienBase[] activeAliens = _waveSpawner.ActiveAliens.ToArray();
+            foreach (AlienBase alien in activeAliens)
             {
                 if (alien != null)
                 {
