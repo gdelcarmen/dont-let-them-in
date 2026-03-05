@@ -22,6 +22,7 @@ namespace DontLetThemIn.Hazards
         [Header("Weak Points")]
         [SerializeField] private int weakPointBarricadeCost = 30;
         [SerializeField] private int breachDistanceThreshold = 1;
+        [SerializeField] private int weakPointHitsRequired = 1;
 
         [Header("Tech Hacking")]
         [SerializeField] private int techHackRangeNodes = 2;
@@ -30,12 +31,14 @@ namespace DontLetThemIn.Hazards
 
         [Header("Collateral")]
         [SerializeField] private float collateralTickInterval = 0.45f;
+        [SerializeField] private int cameraRevealRadiusNodes = 1;
 
         [Header("Boss")]
         [SerializeField] private float bossSpeedBuffMultiplier = 1.3f;
 
         private readonly List<CollateralZone> _zones = new();
         private readonly Dictionary<TechUnitAlien, HackChannel> _hackChannels = new();
+        private readonly Dictionary<GridNode, int> _weakPointHitsRemaining = new();
 
         private NodeGraph _graph;
         private ScrapManager _scrapManager;
@@ -62,6 +65,13 @@ namespace DontLetThemIn.Hazards
         public bool IsPowerSurgeActive { get; private set; }
 
         public bool IsPowerSurgeTelegraphing { get; private set; }
+
+        public void ConfigureMetaRules(int revealRadiusNodes, int requiredWeakPointHits)
+        {
+            cameraRevealRadiusNodes = Mathf.Max(1, revealRadiusNodes);
+            weakPointHitsRequired = Mathf.Max(1, requiredWeakPointHits);
+            RebuildWeakPointHitMap();
+        }
 
         public void Initialize(
             NodeGraph graph,
@@ -93,6 +103,7 @@ namespace DontLetThemIn.Hazards
 
             _hackChannels.Clear();
             ClearCollateralZones();
+            _weakPointHitsRemaining.Clear();
             _pendingUndetectedStalkerSabotage = 0;
             _bossWaveActive = false;
             _activeBoss = null;
@@ -119,6 +130,7 @@ namespace DontLetThemIn.Hazards
             _waveSpawner.AlienKilled += OnAlienKilled;
             _waveSpawner.AlienReachedSafeRoom += OnAlienReachedSafeRoom;
 
+            RebuildWeakPointHitMap();
             EnsureHazardUi();
         }
 
@@ -217,6 +229,7 @@ namespace DontLetThemIn.Hazards
                 return false;
             }
 
+            _weakPointHitsRemaining.Remove(node);
             LastActionMessage = "Weak point barricaded";
             return true;
         }
@@ -348,8 +361,24 @@ namespace DontLetThemIn.Hazards
                     continue;
                 }
 
+                if (!_weakPointHitsRemaining.ContainsKey(candidate))
+                {
+                    _weakPointHitsRemaining[candidate] = Mathf.Max(1, weakPointHitsRequired);
+                }
+
+                _weakPointHitsRemaining[candidate] = Mathf.Max(0, _weakPointHitsRemaining[candidate] - 1);
+                if (_weakPointHitsRemaining[candidate] > 0)
+                {
+                    int required = Mathf.Max(1, weakPointHitsRequired);
+                    int hitsDone = required - _weakPointHitsRemaining[candidate];
+                    _hud?.SetStatus($"Weak point under attack ({hitsDone}/{required})");
+                    LastActionMessage = "Weak point damaged";
+                    break;
+                }
+
                 if (_graph.BreachWeakPoint(candidate))
                 {
+                    _weakPointHitsRemaining.Remove(candidate);
                     LastActionMessage = "Weak point breached";
                     _hud?.SetStatus("A weak point was breached!");
                     break;
@@ -500,6 +529,12 @@ namespace DontLetThemIn.Hazards
                     {
                         shouldReveal = defense.Data.Category == DefenseCategory.A || defense.Data.RevealsInvisibleAliens;
                     }
+                }
+
+                if (!shouldReveal)
+                {
+                    DefenseInstance nearestVisionDefense = FindNearestVisionDefense(stalker.CurrentNode, cameraRevealRadiusNodes);
+                    shouldReveal = nearestVisionDefense != null;
                 }
 
                 if (shouldReveal)
@@ -832,6 +867,58 @@ namespace DontLetThemIn.Hazards
                                   defense.Data != null &&
                                   defense.Data.Category == DefenseCategory.D)
                 .ToList();
+        }
+
+        private DefenseInstance FindNearestVisionDefense(GridNode fromNode, int maxDistanceNodes)
+        {
+            if (fromNode == null || _placement == null)
+            {
+                return null;
+            }
+
+            DefenseInstance nearest = null;
+            int nearestDistance = int.MaxValue;
+            foreach (DefenseInstance defense in _placement.Defenses)
+            {
+                if (defense == null ||
+                    defense.IsConsumed ||
+                    !defense.IsOperational ||
+                    defense.Data == null ||
+                    defense.Node == null ||
+                    !defense.Data.RevealsInvisibleAliens)
+                {
+                    continue;
+                }
+
+                int distance = ManhattanDistance(fromNode, defense.Node);
+                if (distance > Mathf.Max(1, maxDistanceNodes) || distance >= nearestDistance)
+                {
+                    continue;
+                }
+
+                nearest = defense;
+                nearestDistance = distance;
+            }
+
+            return nearest;
+        }
+
+        private void RebuildWeakPointHitMap()
+        {
+            _weakPointHitsRemaining.Clear();
+            if (_graph == null)
+            {
+                return;
+            }
+
+            int required = Mathf.Max(1, weakPointHitsRequired);
+            foreach (GridNode node in _graph.GetWeakPoints(includeBarricaded: false))
+            {
+                if (node != null && node.CanBeBreached)
+                {
+                    _weakPointHitsRemaining[node] = required;
+                }
+            }
         }
 
         private int ManhattanDistance(GridNode a, GridNode b)

@@ -59,7 +59,7 @@ namespace DontLetThemIn.Core
 
         public IReadOnlyList<DraftOffer> DrawOffers(IReadOnlyList<DefenseData> unlockedDefenses, int count, int? seed = null)
         {
-            count = Mathf.Clamp(count, 1, 3);
+            count = Mathf.Clamp(count, 1, 4);
             HashSet<string> unlockedDefenseNames = BuildDefenseNameSet(unlockedDefenses);
             List<DraftOffer> eligible = _pool
                 .Where(offer => IsEligible(offer, unlockedDefenseNames))

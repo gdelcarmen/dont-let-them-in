@@ -9,10 +9,12 @@ namespace DontLetThemIn.Core
     public sealed class RunProgressionState
     {
         private readonly int _totalFloors;
+        private readonly bool _endlessMode;
 
-        public RunProgressionState(int totalFloors)
+        public RunProgressionState(int totalFloors, bool endlessMode = false)
         {
             _totalFloors = totalFloors <= 0 ? 1 : totalFloors;
+            _endlessMode = endlessMode;
         }
 
         public int CurrentFloorIndex { get; private set; }
@@ -24,6 +26,8 @@ namespace DontLetThemIn.Core
         public bool IsRunEnded { get; private set; }
 
         public bool IsRunWon { get; private set; }
+
+        public bool IsEndlessMode => _endlessMode;
 
         public int CalculateStartingScrap(int baseScrap)
         {
@@ -42,6 +46,12 @@ namespace DontLetThemIn.Core
             FloorsCleared++;
             if (CurrentFloorIndex >= _totalFloors - 1)
             {
+                if (_endlessMode)
+                {
+                    CurrentFloorIndex = 0;
+                    return true;
+                }
+
                 IsRunEnded = true;
                 IsRunWon = true;
                 return false;

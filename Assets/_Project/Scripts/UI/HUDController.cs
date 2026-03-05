@@ -209,8 +209,23 @@ namespace DontLetThemIn.UI
                 return;
             }
 
-            for (int i = 0; i < 3; i++)
+            int visibleCardCount = Mathf.Clamp(offers != null ? offers.Count : 3, 1, 4);
+            UpdateDraftCardLayout(visibleCardCount);
+            for (int i = 0; i < 4; i++)
             {
+                Transform cardTransform = _draftRoot.transform.Find($"Card_{i}");
+                if (cardTransform == null)
+                {
+                    continue;
+                }
+
+                bool active = i < visibleCardCount;
+                cardTransform.gameObject.SetActive(active);
+                if (!active)
+                {
+                    continue;
+                }
+
                 DraftOffer offer = offers != null && i < offers.Count ? offers[i] : null;
                 ConfigureDraftCard(i, offer, onCardSelected);
             }
@@ -231,7 +246,7 @@ namespace DontLetThemIn.UI
             int totalScrapEarned,
             Action onReturnToMenu)
         {
-            ShowRunEndOverlay(survived, floorsCleared, totalKills, totalScrapEarned, "N/A", onReturnToMenu);
+            ShowRunEndOverlay(survived, floorsCleared, totalKills, totalScrapEarned, "N/A", 0, 0, 0, onReturnToMenu);
         }
 
         public void ShowRunEndOverlay(
@@ -240,6 +255,20 @@ namespace DontLetThemIn.UI
             int totalKills,
             int totalScrapEarned,
             string bestDefense,
+            Action onReturnToMenu)
+        {
+            ShowRunEndOverlay(survived, floorsCleared, totalKills, totalScrapEarned, bestDefense, 0, 0, 0, onReturnToMenu);
+        }
+
+        public void ShowRunEndOverlay(
+            bool survived,
+            int floorsCleared,
+            int totalKills,
+            int totalScrapEarned,
+            string bestDefense,
+            int salvageEarned,
+            int totalSalvage,
+            int highestLoop,
             Action onReturnToMenu)
         {
             EnsureRunEndOverlay();
@@ -261,11 +290,15 @@ namespace DontLetThemIn.UI
 
             if (summary != null)
             {
+                string loopLine = highestLoop > 0 ? $"\nHighest Loop: {highestLoop}" : string.Empty;
                 summary.text =
                     $"Floors Cleared: {floorsCleared}/3\n" +
                     $"Aliens Killed: {totalKills}\n" +
                     $"Scrap Earned: {totalScrapEarned}\n" +
-                    $"Best Defense: {bestDefense}";
+                    $"Salvage Earned: {Mathf.Max(0, salvageEarned)}\n" +
+                    $"Salvage Balance: {Mathf.Max(0, totalSalvage)}\n" +
+                    $"Best Defense: {bestDefense}" +
+                    loopLine;
             }
 
             if (button != null)
@@ -663,7 +696,7 @@ namespace DontLetThemIn.UI
                 new Vector2(800f, 64f),
                 44).text = "Draft Pick";
 
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 4; i++)
             {
                 GameObject card = new($"Card_{i}");
                 card.transform.SetParent(_draftRoot.transform, false);
@@ -671,7 +704,7 @@ namespace DontLetThemIn.UI
                 cardRect.anchorMin = new Vector2(0.5f, 0.5f);
                 cardRect.anchorMax = new Vector2(0.5f, 0.5f);
                 cardRect.pivot = new Vector2(0.5f, 0.5f);
-                cardRect.anchoredPosition = new Vector2((i - 1) * 280f, -6f);
+                cardRect.anchoredPosition = Vector2.zero;
                 cardRect.sizeDelta = new Vector2(240f, 290f);
                 Image cardBackground = card.AddComponent<Image>();
                 cardBackground.color = new Color(0.16f, 0.2f, 0.28f, 0.95f);
@@ -719,6 +752,27 @@ namespace DontLetThemIn.UI
             }
 
             _draftRoot.SetActive(false);
+        }
+
+        private void UpdateDraftCardLayout(int visibleCards)
+        {
+            if (_draftRoot == null)
+            {
+                return;
+            }
+
+            int cardCount = Mathf.Clamp(visibleCards, 1, 4);
+            for (int i = 0; i < 4; i++)
+            {
+                RectTransform cardRect = _draftRoot.transform.Find($"Card_{i}") as RectTransform;
+                if (cardRect == null)
+                {
+                    continue;
+                }
+
+                float centeredIndex = i - (cardCount - 1) * 0.5f;
+                cardRect.anchoredPosition = new Vector2(centeredIndex * 260f, -6f);
+            }
         }
 
         private void ConfigureDraftCard(int index, DraftOffer offer, Action<int> onCardSelected)

@@ -34,7 +34,11 @@ namespace DontLetThemIn.Defenses
         private float _feedbackUntil;
         private bool _barricadeMode;
         private bool _placementEnabled = true;
-        private bool _trapResetEnabled;
+        private int _categoryATrapResetCharges;
+        private int _tripwireTrapResetCharges;
+        private int _petRespawnChargesPerFloor;
+        private int _petRespawnsRemaining;
+        private int _shotgunExtraTargets;
 
         public IReadOnlyList<DefenseInstance> Defenses => _defenses;
 
@@ -102,6 +106,7 @@ namespace DontLetThemIn.Defenses
             _defenseRoot = defenseRoot;
             _barricadeMode = false;
             _placementEnabled = true;
+            _petRespawnsRemaining = _petRespawnChargesPerFloor;
 
             _availableDefenses.Clear();
             if (defenses != null)
@@ -143,12 +148,36 @@ namespace DontLetThemIn.Defenses
 
         public void SetTrapResetEnabled(bool enabled)
         {
-            _trapResetEnabled = enabled;
+            ConfigureTrapReset(enabled ? 1 : 0, 0);
+        }
+
+        public void ConfigureTrapReset(int categoryATrapResetCharges, int tripwireTrapResetCharges)
+        {
+            _categoryATrapResetCharges = Mathf.Max(0, categoryATrapResetCharges);
+            _tripwireTrapResetCharges = Mathf.Max(0, tripwireTrapResetCharges);
             foreach (DefenseInstance defense in _defenses)
             {
                 if (defense != null)
                 {
-                    defense.SetTrapResetEnabled(enabled);
+                    defense.SetTrapResetCharges(GetTrapResetChargesForDefense(defense.Data));
+                }
+            }
+        }
+
+        public void ConfigurePetRespawnCharges(int chargesPerFloor)
+        {
+            _petRespawnChargesPerFloor = Mathf.Max(0, chargesPerFloor);
+            _petRespawnsRemaining = _petRespawnChargesPerFloor;
+        }
+
+        public void ConfigureWeaponBonuses(int shotgunExtraTargets)
+        {
+            _shotgunExtraTargets = Mathf.Max(0, shotgunExtraTargets);
+            foreach (DefenseInstance defense in _defenses)
+            {
+                if (defense != null)
+                {
+                    defense.SetWeaponExtraTargets(GetWeaponExtraTargets(defense.Data));
                 }
             }
         }
@@ -281,34 +310,11 @@ namespace DontLetThemIn.Defenses
                 return false;
             }
 
-            GameObject defenseObject = new($"Defense_{gridPosition.x}_{gridPosition.y}");
-            defenseObject.transform.SetParent(_defenseRoot, false);
-            defenseObject.transform.position = node.WorldPosition + new Vector3(0f, 0f, -0.2f);
-            defenseObject.transform.localScale = selectedDefense.Category switch
+            if (!TrySpawnDefenseAtNode(selectedDefense, node, out _))
             {
-                DefenseCategory.C => new Vector3(0.58f, 0.58f, 1f),
-                DefenseCategory.D => new Vector3(0.54f, 0.54f, 1f),
-                _ => new Vector3(0.7f, 0.7f, 1f)
-            };
-
-            SpriteRenderer renderer = defenseObject.AddComponent<SpriteRenderer>();
-            renderer.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite();
-            renderer.color = selectedDefense.DisplayColor;
-            renderer.sortingOrder = 30;
-
-            DefenseInstance defense = defenseObject.AddComponent<DefenseInstance>();
-            defense.Initialize(selectedDefense, node, _graph);
-            defense.SetTrapResetEnabled(_trapResetEnabled);
-
-            if (!_graph.PlaceDefense(node, defense))
-            {
-                Destroy(defenseObject);
                 _scrapManager.Add(selectedDefense.ScrapCost);
                 return false;
             }
-
-            _defenses.Add(defense);
-            DefensePlaced?.Invoke(defense);
             ShowFeedback($"{selectedDefense.DefenseName} placed", new Color(0.72f, 0.95f, 0.72f, 1f));
             return true;
         }
@@ -327,9 +333,109 @@ namespace DontLetThemIn.Defenses
                 defense.Tick(aliens);
                 if (defense.IsConsumed)
                 {
+                    if (CanRespawnPet(defense))
+                    {
+                        _petRespawnsRemaining--;
+                        if (TrySpawnDefenseAtNode(defense.Data, defense.Node, out _, runtimeSpawn: true))
+                        {
+                            ShowFeedback("Pet respawned", new Color(0.74f, 0.9f, 0.7f, 1f));
+                        }
+                    }
+
                     _defenses.RemoveAt(i);
                 }
             }
+        }
+
+        private bool TrySpawnDefenseAtNode(
+            DefenseData defenseData,
+            GridNode node,
+            out DefenseInstance defense,
+            bool runtimeSpawn = false)
+        {
+            defense = null;
+            if (defenseData == null || node == null || _defenseRoot == null)
+            {
+                return false;
+            }
+
+            GameObject defenseObject = new($"Defense_{node.GridPosition.x}_{node.GridPosition.y}");
+            defenseObject.transform.SetParent(_defenseRoot, false);
+            defenseObject.transform.position = node.WorldPosition + new Vector3(0f, 0f, -0.2f);
+            defenseObject.transform.localScale = defenseData.Category switch
+            {
+                DefenseCategory.C => new Vector3(0.58f, 0.58f, 1f),
+                DefenseCategory.D => new Vector3(0.54f, 0.54f, 1f),
+                _ => new Vector3(0.7f, 0.7f, 1f)
+            };
+
+            SpriteRenderer renderer = defenseObject.AddComponent<SpriteRenderer>();
+            renderer.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite();
+            renderer.color = defenseData.DisplayColor;
+            renderer.sortingOrder = runtimeSpawn ? 31 : 30;
+
+            defense = defenseObject.AddComponent<DefenseInstance>();
+            defense.Initialize(defenseData, node, _graph);
+            defense.SetTrapResetCharges(GetTrapResetChargesForDefense(defenseData));
+            defense.SetWeaponExtraTargets(GetWeaponExtraTargets(defenseData));
+
+            if (!_graph.PlaceDefense(node, defense))
+            {
+                if (Application.isPlaying)
+                {
+                    Destroy(defenseObject);
+                }
+                else
+                {
+                    DestroyImmediate(defenseObject);
+                }
+
+                defense = null;
+                return false;
+            }
+
+            _defenses.Add(defense);
+            DefensePlaced?.Invoke(defense);
+            return true;
+        }
+
+        private int GetTrapResetChargesForDefense(DefenseData defenseData)
+        {
+            if (defenseData == null || defenseData.Category != DefenseCategory.A)
+            {
+                return 0;
+            }
+
+            int charges = _categoryATrapResetCharges;
+            if (string.Equals(defenseData.DefenseName, "Tripwire Trap", System.StringComparison.OrdinalIgnoreCase))
+            {
+                charges += _tripwireTrapResetCharges;
+            }
+
+            return charges;
+        }
+
+        private int GetWeaponExtraTargets(DefenseData defenseData)
+        {
+            if (defenseData == null || defenseData.Category != DefenseCategory.B)
+            {
+                return 0;
+            }
+
+            return string.Equals(defenseData.DefenseName, "Shotgun Mount", System.StringComparison.OrdinalIgnoreCase)
+                ? _shotgunExtraTargets
+                : 0;
+        }
+
+        private bool CanRespawnPet(DefenseInstance defense)
+        {
+            return defense != null &&
+                   defense.Data != null &&
+                   defense.Data.Category == DefenseCategory.C &&
+                   _petRespawnsRemaining > 0 &&
+                   defense.Node != null &&
+                   defense.Node.State == NodeState.Open &&
+                   !defense.Node.HasDefense;
         }
 
         public void SelectDefense(int index)

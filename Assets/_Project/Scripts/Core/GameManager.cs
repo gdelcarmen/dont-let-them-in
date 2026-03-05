@@ -68,7 +68,22 @@ namespace DontLetThemIn.Core
         private int _killCount;
         private int _totalScrapEarned;
         private int _currentFloorStartingScrap;
+        private int _salvageEarnedThisRun;
         private bool _isTransitioningFloor;
+
+        private MetaProgressionSaveData _metaProgression;
+        private RunMode _runMode = RunMode.Campaign;
+        private CampaignTier _campaignTier = CampaignTier.Normal;
+        private int _draftCardCount = 3;
+        private int _metaStartingScrapOverrideDelta;
+        private int _metaScrapMagnetBonus;
+        private int _metaTripwireResetCharges;
+        private int _metaPetRespawnCharges;
+        private int _metaShotgunExtraTargets;
+        private int _metaCameraRevealRadius = 1;
+        private int _metaWeakPointHitsRequired = 1;
+        private int _currentLoop = 1;
+        private int _highestLoopReached = 1;
 
         public GameState CurrentState => _stateMachine.CurrentState;
 
@@ -92,11 +107,21 @@ namespace DontLetThemIn.Core
 
         public int CurrentFloorStartingScrap => _currentFloorStartingScrap;
 
-        public string CurrentFloorName => ResolveFloorDisplayName(CurrentFloorIndex);
+        public string CurrentFloorName => ResolveFloorDisplayNameWithLoop(CurrentFloorIndex);
 
         public IReadOnlyList<DraftOffer> CurrentDraftOffers => _currentDraftOffers;
 
         public int AvailableDefenseCount => _runAvailableDefenses.Count;
+
+        public RunMode CurrentRunMode => _runMode;
+
+        public CampaignTier CurrentCampaignTier => _campaignTier;
+
+        public int CurrentLoop => _currentLoop;
+
+        public int HighestLoopReached => _highestLoopReached;
+
+        public int SalvageEarnedThisRun => _salvageEarnedThisRun;
 
         private void Start()
         {
@@ -106,11 +131,17 @@ namespace DontLetThemIn.Core
             BootstrapRuntimeData();
             NormalizeEconomyData();
             BuildRunDefenseData();
+            _metaProgression = MetaProgressionService.Load();
+            ConfigureRunModeAndTierFromLaunchConfig();
+            ApplyMetaUpgradeConfiguration();
             _draftSystem = new DraftSystem(DraftSystem.CreateDefaultPool(_runDefenseCatalog));
 
             BuildPersistentSystems();
 
-            _runProgression = new RunProgressionState(Mathf.Max(1, floorLayouts.Length));
+            _runProgression = new RunProgressionState(Mathf.Max(1, floorLayouts.Length), _runMode == RunMode.Endless);
+            _currentLoop = 1;
+            _highestLoopReached = 1;
+            _salvageEarnedThisRun = 0;
             _stateMachine.ForceState(GameState.Transitioning);
 
             LoadCurrentFloorAndBeginPrep("Defend the Safe Room.");
@@ -228,6 +259,52 @@ namespace DontLetThemIn.Core
             return _runAvailableDefenses.FirstOrDefault(defense =>
                 defense != null &&
                 string.Equals(defense.DefenseName, defenseName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private void ConfigureRunModeAndTierFromLaunchConfig()
+        {
+            CampaignTier requestedTier = RunLaunchConfig.HasExplicitSelection
+                ? RunLaunchConfig.Tier
+                : CampaignTier.Normal;
+            requestedTier = ClampTierToUnlocked(requestedTier);
+
+            RunMode requestedMode = RunLaunchConfig.HasExplicitSelection
+                ? RunLaunchConfig.Mode
+                : RunMode.Campaign;
+
+            if (requestedMode == RunMode.Endless && (_metaProgression == null || !_metaProgression.EndlessUnlocked))
+            {
+                requestedMode = RunMode.Campaign;
+            }
+
+            _campaignTier = requestedTier;
+            _runMode = requestedMode;
+        }
+
+        private CampaignTier ClampTierToUnlocked(CampaignTier requestedTier)
+        {
+            int highest = _metaProgression != null
+                ? Mathf.Clamp(_metaProgression.HighestTierUnlocked, (int)CampaignTier.Normal, (int)CampaignTier.Swarm)
+                : (int)CampaignTier.Normal;
+            int clamped = Mathf.Clamp((int)requestedTier, (int)CampaignTier.Normal, highest);
+            return (CampaignTier)clamped;
+        }
+
+        private void ApplyMetaUpgradeConfiguration()
+        {
+            _metaStartingScrapOverrideDelta = IsMetaUpgradePurchased(MetaUpgradeId.StartingBonus) ? 10 : 0;
+            _metaScrapMagnetBonus = IsMetaUpgradePurchased(MetaUpgradeId.ScrapMagnet) ? 1 : 0;
+            _metaTripwireResetCharges = IsMetaUpgradePurchased(MetaUpgradeId.ReinforcedTripwire) ? 1 : 0;
+            _metaPetRespawnCharges = IsMetaUpgradePurchased(MetaUpgradeId.PetResilience) ? 1 : 0;
+            _metaShotgunExtraTargets = IsMetaUpgradePurchased(MetaUpgradeId.ShotgunSpread) ? 1 : 0;
+            _metaCameraRevealRadius = IsMetaUpgradePurchased(MetaUpgradeId.CameraUpgrade) ? 2 : 1;
+            _metaWeakPointHitsRequired = IsMetaUpgradePurchased(MetaUpgradeId.FortifiedWalls) ? 2 : 1;
+            _draftCardCount = IsMetaUpgradePurchased(MetaUpgradeId.ExpandedDraft) ? 4 : 3;
+        }
+
+        private bool IsMetaUpgradePurchased(MetaUpgradeId id)
+        {
+            return MetaProgressionService.IsUpgradePurchased(_metaProgression, id);
         }
 
         private void BootstrapRuntimeData()
@@ -501,31 +578,42 @@ namespace DontLetThemIn.Core
 
             RecreateDefenseRoot();
             _defensePlacement.Initialize(camera, _graph, _scrapManager, _runAvailableDefenses, _defenseRoot);
-            _defensePlacement.SetTrapResetEnabled(_draftSystem != null && _draftSystem.TrapResetEnabled);
+            int draftTrapResetCharges = _draftSystem != null && _draftSystem.TrapResetEnabled ? 1 : 0;
+            _defensePlacement.ConfigureTrapReset(draftTrapResetCharges, _metaTripwireResetCharges);
+            _defensePlacement.ConfigurePetRespawnCharges(_metaPetRespawnCharges);
+            _defensePlacement.ConfigureWeaponBonuses(_metaShotgunExtraTargets);
             _defensePlacement.SetPlacementEnabled(true);
 
-            WaveConfig[] floorWaves = GetWaveConfigsForFloor(CurrentFloorIndex);
+            DifficultyProfile difficultyProfile = RunLaunchConfig.BuildDifficultyProfile(
+                _campaignTier,
+                _runMode == RunMode.Endless ? _currentLoop : 1);
+            AlienData scaledGrey = CreateScaledAlienVariant(greyAlien, difficultyProfile);
+            AlienData scaledStalker = CreateScaledAlienVariant(stalkerAlien, difficultyProfile);
+            AlienData scaledTech = CreateScaledAlienVariant(techUnitAlien, difficultyProfile);
+            AlienData scaledOverlord = CreateScaledAlienVariant(overlordAlien, difficultyProfile);
+            WaveConfig[] floorWaves = BuildScaledWaveConfigsForFloor(CurrentFloorIndex, scaledGrey, scaledStalker, scaledTech, difficultyProfile.WaveCountBonus);
             _waveSpawner.Initialize(
                 _graph,
                 _graph.GetEntryPoints(),
                 _graph.GetSafeRoomNode(),
                 floorWaves,
-                greyAlien);
+                scaledGrey);
 
             bool enableBossWaves = CurrentFloorIndex >= floorLayouts.Length - 1;
+            _hazardSystem.ConfigureMetaRules(_metaCameraRevealRadius, _metaWeakPointHitsRequired);
             _hazardSystem.Initialize(
                 _graph,
                 _scrapManager,
                 _waveSpawner,
                 _defensePlacement,
                 _hud,
-                overlordAlien,
+                scaledOverlord,
                 enableBossWaves);
 
             _safeRoomIntegrity = startingSafeRoomIntegrity;
             _hud.SetIntegrityMax(startingSafeRoomIntegrity);
             _hud.SetIntegrity(_safeRoomIntegrity);
-            _hud.SetFloorName(ResolveFloorDisplayName(CurrentFloorIndex));
+            _hud.SetFloorName(ResolveFloorDisplayNameWithLoop(CurrentFloorIndex));
             _hud.SetWave(0, Mathf.Max(1, floorWaves.Length));
             _hud.HideWaveCountdown();
             _hud.HideDraftPick();
@@ -550,7 +638,8 @@ namespace DontLetThemIn.Core
         private int CalculateStartingScrapForCurrentFloor()
         {
             int bonus = _draftSystem != null ? _draftSystem.StartingScrapBonus : 0;
-            return _runProgression.CalculateStartingScrap(startingScrap + bonus);
+            int baseScrap = startingScrap + _metaStartingScrapOverrideDelta + bonus;
+            return _runProgression.CalculateStartingScrap(baseScrap);
         }
 
         private void BeginPrepPhase()
@@ -725,7 +814,7 @@ namespace DontLetThemIn.Core
             }
 
             _killCount++;
-            AwardScrap(alien.Data.ScrapReward);
+            AwardScrap(alien.Data.ScrapReward + _metaScrapMagnetBonus);
         }
 
         private void AwardScrap(int amount)
@@ -775,12 +864,21 @@ namespace DontLetThemIn.Core
             _stateMachine.ForceState(GameState.FloorClear);
             _hud?.SetStatus("Floor Cleared!");
 
+            int floorBeforeAdvance = CurrentFloorIndex;
             bool hasNextFloor = _runProgression.AdvanceAfterFloorClear();
             if (!hasNextFloor)
             {
                 EndRun(survived: true);
                 _isTransitioningFloor = false;
                 return;
+            }
+
+            if (_runMode == RunMode.Endless &&
+                floorBeforeAdvance >= floorLayouts.Length - 1 &&
+                CurrentFloorIndex == 0)
+            {
+                _currentLoop++;
+                _highestLoopReached = Mathf.Max(_highestLoopReached, _currentLoop);
             }
 
             StopTransitionRoutine();
@@ -798,7 +896,7 @@ namespace DontLetThemIn.Core
             _stateMachine.ForceState(GameState.DraftPick);
             _pendingDraftSelectionIndex = -1;
 
-            _currentDraftOffers = _draftSystem.DrawOffers(_runAvailableDefenses, 3);
+            _currentDraftOffers = _draftSystem.DrawOffers(_runAvailableDefenses, _draftCardCount);
             _hud.ShowDraftPick(
                 _currentDraftOffers,
                 selectedIndex => _pendingDraftSelectionIndex = selectedIndex,
@@ -815,7 +913,7 @@ namespace DontLetThemIn.Core
 
             _hud.HideDraftPick();
             _stateMachine.ForceState(GameState.Transitioning);
-            LoadCurrentFloorAndBeginPrep($"Entering {ResolveFloorDisplayName(CurrentFloorIndex)}");
+            LoadCurrentFloorAndBeginPrep($"Entering {ResolveFloorDisplayNameWithLoop(CurrentFloorIndex)}");
             _isTransitioningFloor = false;
             _transitionRoutine = null;
         }
@@ -827,7 +925,8 @@ namespace DontLetThemIn.Core
                 return;
             }
 
-            _defensePlacement?.SetTrapResetEnabled(_draftSystem.TrapResetEnabled);
+            int draftTrapResetCharges = _draftSystem.TrapResetEnabled ? 1 : 0;
+            _defensePlacement?.ConfigureTrapReset(draftTrapResetCharges, _metaTripwireResetCharges);
 
             if (selectedOffer != null)
             {
@@ -875,7 +974,7 @@ namespace DontLetThemIn.Core
             }
 
             _stateMachine.ForceState(GameState.Transitioning);
-            LoadCurrentFloorAndBeginPrep($"Retreated to {ResolveFloorDisplayName(CurrentFloorIndex)}");
+            LoadCurrentFloorAndBeginPrep($"Retreated to {ResolveFloorDisplayNameWithLoop(CurrentFloorIndex)}");
             _isTransitioningFloor = false;
             _transitionRoutine = null;
         }
@@ -885,6 +984,23 @@ namespace DontLetThemIn.Core
             StopActiveFloorCoroutines();
             _waveSpawner?.AbortCurrentWavesAndAliens();
             _defensePlacement?.SetPlacementEnabled(false);
+
+            bool flawlessCampaignRun = _runMode == RunMode.Campaign &&
+                                       survived &&
+                                       FloorsCleared >= floorLayouts.Length &&
+                                       FloorsLost == 0;
+            _salvageEarnedThisRun = MetaProgressionService.CalculateSalvagePoints(
+                FloorsCleared,
+                _killCount,
+                flawlessCampaignRun);
+            _metaProgression = MetaProgressionService.ApplyRunResults(
+                survived,
+                _runMode == RunMode.Endless,
+                _campaignTier,
+                FloorsCleared,
+                FloorsLost,
+                _killCount,
+                _highestLoopReached);
 
             _stateMachine.ForceState(GameState.RunEnd);
             _hud?.HidePrepCountdown();
@@ -903,6 +1019,9 @@ namespace DontLetThemIn.Core
                 stats.TotalKills,
                 stats.TotalScrapEarned,
                 stats.BestDefenseSummary,
+                _salvageEarnedThisRun,
+                _metaProgression?.SalvagePoints ?? 0,
+                _runMode == RunMode.Endless ? _highestLoopReached : 0,
                 ReturnToMainMenu);
         }
 
@@ -918,7 +1037,6 @@ namespace DontLetThemIn.Core
                 return;
             }
 
-            defense.SetTrapResetEnabled(_draftSystem != null && _draftSystem.TrapResetEnabled);
             defense.AlienEliminated -= OnDefenseAlienEliminated;
             defense.AlienEliminated += OnDefenseAlienEliminated;
         }
@@ -1027,6 +1145,90 @@ namespace DontLetThemIn.Core
             };
         }
 
+        private AlienData CreateScaledAlienVariant(AlienData source, DifficultyProfile profile)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            DifficultyProfile safeProfile = profile ?? new DifficultyProfile();
+            AlienData clone = Instantiate(source);
+            clone.name = $"{source.name}_Scaled_{CurrentFloorIndex}_{_currentLoop}";
+            clone.MaxHealth = Mathf.Max(1f, source.MaxHealth * Mathf.Max(0.1f, safeProfile.HealthMultiplier));
+            clone.Speed = Mathf.Max(0.1f, source.Speed * Mathf.Max(0.1f, safeProfile.SpeedMultiplier));
+            return clone;
+        }
+
+        private WaveConfig[] BuildScaledWaveConfigsForFloor(
+            int floorIndex,
+            AlienData scaledGrey,
+            AlienData scaledStalker,
+            AlienData scaledTech,
+            int waveCountBonus)
+        {
+            WaveConfig[] source = GetWaveConfigsForFloor(floorIndex);
+            if (source == null || source.Length == 0)
+            {
+                return Array.Empty<WaveConfig>();
+            }
+
+            Dictionary<AlienType, AlienData> map = new()
+            {
+                [AlienType.Grey] = scaledGrey,
+                [AlienType.Stalker] = scaledStalker,
+                [AlienType.TechUnit] = scaledTech
+            };
+
+            List<WaveConfig> clones = new(source.Length);
+            for (int waveIndex = 0; waveIndex < source.Length; waveIndex++)
+            {
+                WaveConfig baseWave = source[waveIndex];
+                if (baseWave == null)
+                {
+                    continue;
+                }
+
+                WaveConfig clone = ScriptableObject.CreateInstance<WaveConfig>();
+                clone.name = $"{baseWave.name}_Scaled_{_campaignTier}_L{_currentLoop}_{waveIndex}";
+                clone.WaveName = baseWave.WaveName;
+                clone.PreWaveDelay = Mathf.Max(0f, baseWave.PreWaveDelay);
+                clone.PostWaveDelay = Mathf.Max(0f, baseWave.PostWaveDelay);
+                clone.Spawns = new List<WaveSpawnDirective>();
+
+                if (baseWave.Spawns != null)
+                {
+                    foreach (WaveSpawnDirective directive in baseWave.Spawns)
+                    {
+                        if (directive == null)
+                        {
+                            continue;
+                        }
+
+                        AlienData mappedAlien = scaledGrey;
+                        if (directive.Alien != null && map.TryGetValue(directive.Alien.AlienType, out AlienData candidate) && candidate != null)
+                        {
+                            mappedAlien = candidate;
+                        }
+
+                        WaveSpawnDirective spawn = new()
+                        {
+                            Alien = mappedAlien,
+                            Count = Mathf.Max(1, directive.Count + Mathf.Max(0, waveCountBonus)),
+                            SpawnDelay = Mathf.Max(0f, directive.SpawnDelay),
+                            EntryPointSelection = directive.EntryPointSelection,
+                            EntryPointIndex = directive.EntryPointIndex
+                        };
+                        clone.Spawns.Add(spawn);
+                    }
+                }
+
+                clones.Add(clone);
+            }
+
+            return clones.ToArray();
+        }
+
         private string ResolveFloorDisplayName(int floorIndex)
         {
             if (floorDisplayNames == null || floorDisplayNames.Length == 0)
@@ -1041,6 +1243,17 @@ namespace DontLetThemIn.Core
             }
 
             return floorDisplayNames[index];
+        }
+
+        private string ResolveFloorDisplayNameWithLoop(int floorIndex)
+        {
+            string baseName = ResolveFloorDisplayName(floorIndex);
+            if (_runMode != RunMode.Endless)
+            {
+                return baseName;
+            }
+
+            return $"Loop {_currentLoop} - {baseName}";
         }
 
         private void RecreateDefenseRoot()

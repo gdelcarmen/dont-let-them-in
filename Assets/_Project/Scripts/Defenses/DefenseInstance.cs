@@ -27,7 +27,8 @@ namespace DontLetThemIn.Defenses
         private float _statusUntil;
         private string _statusText;
         private TextMesh _statusLabel;
-        private bool _trapResetEnabled;
+        private int _trapResetCharges;
+        private int _extraWeaponTargets;
 
         public DefenseData Data { get; private set; }
 
@@ -78,7 +79,17 @@ namespace DontLetThemIn.Defenses
 
         public void SetTrapResetEnabled(bool enabled)
         {
-            _trapResetEnabled = enabled;
+            _trapResetCharges = enabled ? 1 : 0;
+        }
+
+        public void SetTrapResetCharges(int charges)
+        {
+            _trapResetCharges = Mathf.Max(0, charges);
+        }
+
+        public void SetWeaponExtraTargets(int extraTargets)
+        {
+            _extraWeaponTargets = Mathf.Max(0, extraTargets);
         }
 
         public bool TryApplyDamage(AlienBase alien, GridNode alienNode)
@@ -124,8 +135,9 @@ namespace DontLetThemIn.Defenses
                 _usesRemaining--;
                 if (_usesRemaining == 0)
                 {
-                    if (_trapResetEnabled)
+                    if (_trapResetCharges > 0)
                     {
+                        _trapResetCharges--;
                         _usesRemaining = Mathf.Max(1, Data.Uses);
                         ShowStatus("RESET", 0.45f);
                     }
@@ -173,18 +185,23 @@ namespace DontLetThemIn.Defenses
                 return;
             }
 
-            AlienBase target = FindNearestTarget(
+            List<AlienBase> targets = FindTargetsInRange(
                 aliens,
                 transform.position,
                 Mathf.Max(0.1f, Data.Range),
-                useGridDistance: true);
+                useGridDistance: true,
+                maxTargets: Mathf.Max(1, 1 + _extraWeaponTargets));
 
-            if (target == null)
+            if (targets.Count == 0)
             {
                 return;
             }
 
-            ApplyDamageAndTrackKill(target, Data.Damage);
+            for (int i = 0; i < targets.Count; i++)
+            {
+                ApplyDamageAndTrackKill(targets[i], Data.Damage);
+            }
+
             ActivatePulse();
             _nextAttackTime = Time.unscaledTime + Mathf.Max(0.1f, Data.AttackInterval);
         }
@@ -337,6 +354,45 @@ namespace DontLetThemIn.Defenses
             }
 
             return nearest;
+        }
+
+        private List<AlienBase> FindTargetsInRange(
+            IReadOnlyCollection<AlienBase> aliens,
+            Vector3 origin,
+            float range,
+            bool useGridDistance,
+            int maxTargets)
+        {
+            List<(AlienBase alien, float distance)> candidates = new();
+            foreach (AlienBase alien in aliens)
+            {
+                if (alien == null || !alien.IsAlive || alien.CurrentNode == null)
+                {
+                    continue;
+                }
+
+                float distance;
+                if (useGridDistance && Node != null)
+                {
+                    distance = Mathf.Abs(Node.GridPosition.x - alien.CurrentNode.GridPosition.x) +
+                               Mathf.Abs(Node.GridPosition.y - alien.CurrentNode.GridPosition.y);
+                }
+                else
+                {
+                    distance = Vector3.Distance(origin, alien.transform.position);
+                }
+
+                if (distance <= range)
+                {
+                    candidates.Add((alien, distance));
+                }
+            }
+
+            return candidates
+                .OrderBy(candidate => candidate.distance)
+                .Take(Mathf.Max(1, maxTargets))
+                .Select(candidate => candidate.alien)
+                .ToList();
         }
 
         public void DisableFor(float duration, string reason)

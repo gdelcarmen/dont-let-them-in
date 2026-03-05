@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using DontLetThemIn.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -7,8 +9,16 @@ namespace DontLetThemIn.UI
     public sealed class MainMenuController : MonoBehaviour
     {
         [SerializeField] private string campaignSceneName = "GameScene";
+        [SerializeField] private string metaUpgradesSceneName = "MetaUpgrades";
 
+        private readonly Dictionary<CampaignTier, Button> _tierButtons = new();
         private Font _font;
+        private CampaignTier _selectedTier = CampaignTier.Normal;
+        private MetaProgressionSaveData _metaProgression;
+        private Text _tierInfoText;
+        private Button _campaignButton;
+        private Button _endlessButton;
+        private Button _metaUpgradesButton;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void EnsureController()
@@ -40,7 +50,10 @@ namespace DontLetThemIn.UI
             }
 
             _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            _metaProgression = MetaProgressionService.Reload();
+            RunLaunchConfig.ResetToDefaults();
             BuildMenuUi();
+            SelectTier(CampaignTier.Normal);
         }
 
         private void BuildMenuUi()
@@ -82,35 +95,60 @@ namespace DontLetThemIn.UI
                 new Vector2(900f, 48f));
             subtitle.color = new Color(0.92f, 0.92f, 0.92f, 1f);
 
-            EnsureButton(
+            Text tierHeader = FindOrCreateText(
+                root,
+                "TierHeader",
+                "Campaign Tier",
+                24,
+                TextAnchor.MiddleCenter,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 20f),
+                new Vector2(420f, 40f));
+            tierHeader.color = new Color(0.88f, 0.9f, 0.95f, 1f);
+
+            _tierInfoText = FindOrCreateText(
+                root,
+                "TierInfoText",
+                string.Empty,
+                16,
+                TextAnchor.MiddleCenter,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -12f),
+                new Vector2(680f, 28f));
+            _tierInfoText.color = new Color(0.82f, 0.84f, 0.9f, 0.95f);
+
+            EnsureTierButton(root, CampaignTier.Normal, "Normal", new Vector2(-220f, -54f));
+            EnsureTierButton(root, CampaignTier.Infestation, "Infestation", new Vector2(0f, -54f));
+            EnsureTierButton(root, CampaignTier.Swarm, "Swarm", new Vector2(220f, -54f));
+
+            _campaignButton = EnsureMenuButton(
                 root,
                 "CampaignButton",
                 "Campaign",
-                new Vector2(0f, -26f),
+                new Vector2(0f, -140f),
                 new Vector2(290f, 72f),
-                interactable: true,
-                onClick: () => SceneManager.LoadScene(campaignSceneName),
-                showComingSoon: false);
+                onClick: StartCampaign);
 
-            EnsureButton(
+            _endlessButton = EnsureMenuButton(
                 root,
                 "EndlessButton",
                 "Endless",
-                new Vector2(0f, -114f),
+                new Vector2(0f, -226f),
                 new Vector2(290f, 72f),
-                interactable: false,
-                onClick: null,
-                showComingSoon: true);
+                onClick: StartEndless);
 
-            EnsureButton(
+            _metaUpgradesButton = EnsureMenuButton(
                 root,
                 "MetaUpgradesButton",
                 "Meta Upgrades",
-                new Vector2(0f, -202f),
+                new Vector2(0f, -312f),
                 new Vector2(290f, 72f),
-                interactable: false,
-                onClick: null,
-                showComingSoon: true);
+                onClick: OpenMetaUpgrades);
+
+            RefreshTierVisuals();
+            RefreshModeButtons();
         }
 
         private Canvas FindOrCreateCanvas()
@@ -174,15 +212,13 @@ namespace DontLetThemIn.UI
             return text;
         }
 
-        private void EnsureButton(
+        private Button EnsureMenuButton(
             RectTransform parent,
             string objectName,
             string label,
             Vector2 anchoredPosition,
             Vector2 size,
-            bool interactable,
-            UnityEngine.Events.UnityAction onClick,
-            bool showComingSoon)
+            UnityEngine.Events.UnityAction onClick)
         {
             Transform existing = parent.Find(objectName);
             GameObject buttonObject = existing != null ? existing.gameObject : new GameObject(objectName);
@@ -209,10 +245,6 @@ namespace DontLetThemIn.UI
                 image = buttonObject.AddComponent<Image>();
             }
 
-            image.color = interactable
-                ? new Color(0.23f, 0.24f, 0.26f, 0.95f)
-                : new Color(0.17f, 0.17f, 0.17f, 0.85f);
-
             Button button = buttonObject.GetComponent<Button>();
             if (button == null)
             {
@@ -225,14 +257,32 @@ namespace DontLetThemIn.UI
                 button.onClick.AddListener(onClick);
             }
 
-            button.interactable = interactable;
+            Text labelText = EnsureButtonLabel(buttonObject.transform);
+            labelText.text = label;
+            return button;
+        }
 
-            Transform textTransform = buttonObject.transform.Find("Text");
+        private Button EnsureTierButton(RectTransform parent, CampaignTier tier, string label, Vector2 anchoredPosition)
+        {
+            Button button = EnsureMenuButton(
+                parent,
+                $"{tier}TierButton",
+                label,
+                anchoredPosition,
+                new Vector2(190f, 56f),
+                () => SelectTier(tier));
+            _tierButtons[tier] = button;
+            return button;
+        }
+
+        private static Text EnsureButtonLabel(Transform buttonTransform)
+        {
+            Transform textTransform = buttonTransform.Find("Text");
             Text text = textTransform != null ? textTransform.GetComponent<Text>() : null;
             if (text == null)
             {
                 GameObject textObject = new("Text");
-                textObject.transform.SetParent(buttonObject.transform, false);
+                textObject.transform.SetParent(buttonTransform, false);
                 text = textObject.AddComponent<Text>();
             }
 
@@ -241,39 +291,125 @@ namespace DontLetThemIn.UI
             textRect.anchorMax = Vector2.one;
             textRect.offsetMin = new Vector2(0f, 4f);
             textRect.offsetMax = new Vector2(0f, -4f);
-            text.font = _font;
             text.alignment = TextAnchor.MiddleCenter;
-            text.fontSize = 26;
-            text.color = interactable ? Color.white : new Color(0.75f, 0.75f, 0.75f, 0.9f);
-            text.text = label;
+            text.fontSize = 24;
+            return text;
+        }
 
-            Transform badgeTransform = buttonObject.transform.Find("ComingSoon");
-            Text badge = badgeTransform != null ? badgeTransform.GetComponent<Text>() : null;
-            if (showComingSoon)
+        private static void SetButtonVisual(Button button, bool interactable, bool highlighted)
+        {
+            if (button == null)
             {
-                if (badge == null)
+                return;
+            }
+
+            button.interactable = interactable;
+            Image image = button.GetComponent<Image>();
+            if (image != null)
+            {
+                image.color = highlighted
+                    ? new Color(0.28f, 0.36f, 0.5f, 0.96f)
+                    : interactable
+                        ? new Color(0.23f, 0.24f, 0.26f, 0.95f)
+                        : new Color(0.17f, 0.17f, 0.17f, 0.85f);
+            }
+
+            Text label = button.transform.Find("Text")?.GetComponent<Text>();
+            if (label != null)
+            {
+                label.color = interactable
+                    ? Color.white
+                    : new Color(0.72f, 0.72f, 0.72f, 0.85f);
+            }
+        }
+
+        private void SelectTier(CampaignTier tier)
+        {
+            if (!MetaProgressionService.IsTierUnlocked(tier))
+            {
+                return;
+            }
+
+            _selectedTier = tier;
+            RefreshTierVisuals();
+        }
+
+        private void RefreshTierVisuals()
+        {
+            foreach (KeyValuePair<CampaignTier, Button> pair in _tierButtons)
+            {
+                CampaignTier tier = pair.Key;
+                Button button = pair.Value;
+                bool unlocked = MetaProgressionService.IsTierUnlocked(tier);
+                bool selected = tier == _selectedTier;
+                SetButtonVisual(button, unlocked, selected);
+
+                Text label = button != null ? button.transform.Find("Text")?.GetComponent<Text>() : null;
+                if (label != null)
                 {
-                    GameObject badgeObject = new("ComingSoon");
-                    badgeObject.transform.SetParent(buttonObject.transform, false);
-                    badge = badgeObject.AddComponent<Text>();
+                    string baseName = tier.ToString();
+                    label.text = unlocked ? baseName : $"{baseName} (Locked)";
+                    label.font = _font;
+                    label.fontSize = 19;
                 }
+            }
 
-                RectTransform badgeRect = badge.GetComponent<RectTransform>();
-                badgeRect.anchorMin = new Vector2(1f, 0.5f);
-                badgeRect.anchorMax = new Vector2(1f, 0.5f);
-                badgeRect.pivot = new Vector2(1f, 0.5f);
-                badgeRect.anchoredPosition = new Vector2(-8f, -20f);
-                badgeRect.sizeDelta = new Vector2(124f, 24f);
-                badge.font = _font;
-                badge.fontSize = 13;
-                badge.alignment = TextAnchor.MiddleRight;
-                badge.color = new Color(0.95f, 0.8f, 0.35f, 0.95f);
-                badge.text = "Coming Soon";
-            }
-            else if (badge != null)
+            if (_tierInfoText != null)
             {
-                badge.gameObject.SetActive(false);
+                int highestUnlocked = MetaProgressionService.GetHighestTierUnlocked();
+                string highestName = ((CampaignTier)highestUnlocked).ToString();
+                _tierInfoText.text = $"Selected: {_selectedTier}  |  Highest Unlocked: {highestName}";
             }
+        }
+
+        private void RefreshModeButtons()
+        {
+            if (_metaProgression == null)
+            {
+                _metaProgression = MetaProgressionService.Load();
+            }
+
+            SetButtonVisual(_campaignButton, interactable: true, highlighted: false);
+            SetButtonVisual(_endlessButton, interactable: _metaProgression.EndlessUnlocked, highlighted: false);
+            SetButtonVisual(_metaUpgradesButton, interactable: true, highlighted: false);
+
+            Text endlessLabel = _endlessButton != null ? _endlessButton.transform.Find("Text")?.GetComponent<Text>() : null;
+            if (endlessLabel != null)
+            {
+                endlessLabel.font = _font;
+                endlessLabel.text = _metaProgression.EndlessUnlocked
+                    ? "Endless"
+                    : "Endless (Locked)";
+            }
+
+            Text metaLabel = _metaUpgradesButton != null ? _metaUpgradesButton.transform.Find("Text")?.GetComponent<Text>() : null;
+            if (metaLabel != null)
+            {
+                metaLabel.font = _font;
+                metaLabel.text = "Meta Upgrades";
+            }
+        }
+
+        private void StartCampaign()
+        {
+            RunLaunchConfig.ConfigureCampaign(_selectedTier);
+            SceneManager.LoadScene(campaignSceneName);
+        }
+
+        private void StartEndless()
+        {
+            if (_metaProgression == null || !_metaProgression.EndlessUnlocked)
+            {
+                return;
+            }
+
+            RunLaunchConfig.ConfigureEndless(_selectedTier);
+            SceneManager.LoadScene(campaignSceneName);
+        }
+
+        private void OpenMetaUpgrades()
+        {
+            SceneManager.LoadScene(metaUpgradesSceneName);
         }
     }
 }
