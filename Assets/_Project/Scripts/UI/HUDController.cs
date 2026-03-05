@@ -6,28 +6,33 @@ namespace DontLetThemIn.UI
 {
     public sealed class HUDController : MonoBehaviour
     {
-        private Text _scrapText;
-        private Text _waveText;
-        private Text _integrityText;
-        private Text _statusText;
-        private Button _restartButton;
+        [SerializeField] private Text _scrapText;
+        [SerializeField] private Text _waveText;
+        [SerializeField] private Text _integrityText;
+        [SerializeField] private Text _statusText;
+        [SerializeField] private Button _restartButton;
 
         public event Action RestartRequested;
 
         public void Initialize()
         {
-            Canvas canvas = CreateCanvas();
-            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (!TryBindExistingHud())
+            {
+                Canvas canvas = CreateCanvas();
+                Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
-            _scrapText = CreateText("ScrapText", canvas.transform, font, TextAnchor.UpperLeft, new Vector2(20f, -20f));
-            _waveText = CreateText("WaveText", canvas.transform, font, TextAnchor.UpperCenter, new Vector2(0f, -20f));
-            _integrityText = CreateText("IntegrityText", canvas.transform, font, TextAnchor.UpperRight, new Vector2(-20f, -20f));
+                _scrapText = CreateText("ScrapText", canvas.transform, font, TextAnchor.UpperLeft, new Vector2(20f, -20f));
+                _waveText = CreateText("WaveText", canvas.transform, font, TextAnchor.UpperCenter, new Vector2(0f, -20f));
+                _integrityText = CreateText("IntegrityText", canvas.transform, font, TextAnchor.UpperRight, new Vector2(-20f, -20f));
 
-            _statusText = CreateText("StatusText", canvas.transform, font, TextAnchor.MiddleCenter, new Vector2(0f, -80f));
-            _statusText.alignment = TextAnchor.MiddleCenter;
-            _statusText.fontSize = 24;
+                _statusText = CreateText("StatusText", canvas.transform, font, TextAnchor.MiddleCenter, new Vector2(0f, -80f));
+                _statusText.alignment = TextAnchor.MiddleCenter;
+                _statusText.fontSize = 24;
 
-            _restartButton = CreateButton(canvas.transform, font);
+                _restartButton = CreateButton(canvas.transform, font);
+            }
+
+            _restartButton.onClick.RemoveAllListeners();
             _restartButton.onClick.AddListener(() => RestartRequested?.Invoke());
         }
 
@@ -146,6 +151,45 @@ namespace DontLetThemIn.UI
             textRect.offsetMax = Vector2.zero;
 
             return button;
+        }
+
+        private bool TryBindExistingHud()
+        {
+            _scrapText ??= FindTextByName("ScrapText");
+            _waveText ??= FindTextByName("WaveText");
+            _integrityText ??= FindTextByName("IntegrityText");
+            _statusText ??= FindTextByName("StatusText");
+
+            if (_restartButton == null)
+            {
+                foreach (Button button in GetComponentsInChildren<Button>(true))
+                {
+                    if (button != null && button.name == "RestartButton")
+                    {
+                        _restartButton = button;
+                        break;
+                    }
+                }
+            }
+
+            return _scrapText != null &&
+                   _waveText != null &&
+                   _integrityText != null &&
+                   _statusText != null &&
+                   _restartButton != null;
+        }
+
+        private Text FindTextByName(string objectName)
+        {
+            foreach (Text text in GetComponentsInChildren<Text>(true))
+            {
+                if (text != null && text.name == objectName)
+                {
+                    return text;
+                }
+            }
+
+            return null;
         }
     }
 }

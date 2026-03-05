@@ -101,6 +101,19 @@ namespace DontLetThemIn.Core
             return data;
         }
 
+        public static AlienData CreateOverlordAlien()
+        {
+            AlienData data = ScriptableObject.CreateInstance<AlienData>();
+            data.name = "Overlord_Runtime";
+            data.AlienName = "Overlord";
+            data.AlienType = AlienType.Overlord;
+            data.MaxHealth = 140f;
+            data.Speed = 1.1f;
+            data.ScrapReward = 80;
+            data.HasSpecialAbility = true;
+            return data;
+        }
+
         public static WaveConfig[] CreateWaveSet(
             AlienData greyAlien,
             AlienData stalkerAlien,

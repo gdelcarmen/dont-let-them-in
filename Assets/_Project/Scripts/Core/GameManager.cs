@@ -38,6 +38,8 @@ namespace DontLetThemIn.Core
 
         private void Start()
         {
+            Application.runInBackground = true;
+            Time.timeScale = 1f;
             BootstrapRuntimeData();
             BuildWorld();
             BuildSystems();
@@ -101,29 +103,36 @@ namespace DontLetThemIn.Core
             _graph = FloorGraphBuilder.Build(floorLayout);
             Camera camera = CameraSetup.EnsureTopDownCamera(_graph);
 
-            GameObject floorRoot = new("FloorRenderer");
-            FloorRenderer floorRenderer = floorRoot.AddComponent<FloorRenderer>();
+            FloorRenderer floorRenderer = FindOrCreateComponent<FloorRenderer>("FloorLayoutManager");
             floorRenderer.Initialize(_graph);
 
-            GameObject debugRoot = new("GridDebug");
-            _debugDrawer = debugRoot.AddComponent<GridDebugDrawer>();
+            _debugDrawer = FindOrCreateComponent<GridDebugDrawer>("GridDebug");
             _debugDrawer.Initialize(_graph);
 
-            GameObject defenseRoot = new("Defenses");
+            GameObject defenseRoot = GameObject.Find("Defenses");
+            if (defenseRoot == null)
+            {
+                defenseRoot = new GameObject("Defenses");
+            }
 
-            _scrapManager = new ScrapManager(startingScrap);
+            ScrapManagerComponent scrapComponent = FindOrCreateComponent<ScrapManagerComponent>("ScrapManager");
+            _scrapManager = scrapComponent.Initialize(startingScrap);
             _safeRoomIntegrity = startingSafeRoomIntegrity;
             _stateMachine.SetState(GameState.Running);
 
-            GameObject placementRoot = new("DefensePlacement");
-            _defensePlacement = placementRoot.AddComponent<DefensePlacementController>();
+            _defensePlacement = FindOrCreateComponent<DefensePlacementController>("DefensePlacement");
             _defensePlacement.Initialize(camera, _graph, _scrapManager, defaultDefense, defenseRoot.transform);
         }
 
         private void BuildSystems()
         {
-            GameObject hudRoot = new("HUD");
-            _hud = hudRoot.AddComponent<HUDController>();
+            _hud = Object.FindFirstObjectByType<HUDController>();
+            if (_hud == null)
+            {
+                GameObject hudRoot = new("HUD");
+                _hud = hudRoot.AddComponent<HUDController>();
+            }
+
             _hud.Initialize();
             _hud.RestartRequested += RestartRun;
             _hud.SetRestartVisible(true);
@@ -133,8 +142,7 @@ namespace DontLetThemIn.Core
             _hud.SetIntegrity(_safeRoomIntegrity);
             _hud.SetStatus(string.Empty);
 
-            GameObject spawnerRoot = new("WaveSpawner");
-            _waveSpawner = spawnerRoot.AddComponent<WaveSpawner>();
+            _waveSpawner = FindOrCreateComponent<WaveSpawner>("WaveSpawner");
             _waveSpawner.Initialize(
                 _graph,
                 _graph.GetEntryPoints(),
@@ -193,6 +201,19 @@ namespace DontLetThemIn.Core
         private void RestartRun()
         {
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        }
+
+        private static T FindOrCreateComponent<T>(string gameObjectName) where T : Component
+        {
+            T component = Object.FindFirstObjectByType<T>();
+            if (component != null)
+            {
+                component.gameObject.name = gameObjectName;
+                return component;
+            }
+
+            GameObject target = new(gameObjectName);
+            return target.AddComponent<T>();
         }
     }
 }

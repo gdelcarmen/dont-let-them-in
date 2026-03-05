@@ -1,7 +1,9 @@
 {
   "name": "DontLetThemIn.Runtime",
   "rootNamespace": "DontLetThemIn",
-  "references": [],
+  "references": [
+    "Unity.InputSystem"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

@@ -2,7 +2,8 @@
   "name": "DontLetThemIn.Editor",
   "rootNamespace": "DontLetThemIn",
   "references": [
-    "DontLetThemIn.Runtime"
+    "DontLetThemIn.Runtime",
+    "Unity.InputSystem"
   ],
   "includePlatforms": [
     "Editor"

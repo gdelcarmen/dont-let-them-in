@@ -78,7 +78,7 @@ namespace DontLetThemIn.Waves
 
                 if (waveConfig != null && waveConfig.PreWaveDelay > 0f)
                 {
-                    yield return new WaitForSeconds(waveConfig.PreWaveDelay);
+                    yield return new WaitForSecondsRealtime(waveConfig.PreWaveDelay);
                 }
 
                 if (waveConfig?.Spawns != null)
@@ -96,7 +96,7 @@ namespace DontLetThemIn.Waves
                             float delay = Mathf.Max(0f, directive.SpawnDelay);
                             if (delay > 0f)
                             {
-                                yield return new WaitForSeconds(delay);
+                                yield return new WaitForSecondsRealtime(delay);
                             }
                             else
                             {
@@ -114,7 +114,7 @@ namespace DontLetThemIn.Waves
                 WaveCompleted?.Invoke(CurrentWave, waveSet.Length, waveConfig);
                 if (waveConfig != null && waveConfig.PostWaveDelay > 0f && waveIndex < waveSet.Length - 1)
                 {
-                    yield return new WaitForSeconds(waveConfig.PostWaveDelay);
+                    yield return new WaitForSecondsRealtime(waveConfig.PostWaveDelay);
                 }
             }
 

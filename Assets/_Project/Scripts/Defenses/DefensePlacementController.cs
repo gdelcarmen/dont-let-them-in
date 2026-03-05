@@ -3,6 +3,9 @@ using DontLetThemIn.Aliens;
 using DontLetThemIn.Economy;
 using DontLetThemIn.Grid;
 using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 namespace DontLetThemIn.Defenses
 {
@@ -39,6 +42,17 @@ namespace DontLetThemIn.Defenses
                 return;
             }
 
+#if ENABLE_INPUT_SYSTEM
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+            {
+                TryPlaceDefense(Mouse.current.position.ReadValue());
+            }
+
+            if (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
+            {
+                TryPlaceDefense(Touchscreen.current.primaryTouch.position.ReadValue());
+            }
+#else
             if (Input.GetMouseButtonDown(0))
             {
                 TryPlaceDefense(Input.mousePosition);
@@ -48,6 +62,7 @@ namespace DontLetThemIn.Defenses
             {
                 TryPlaceDefense(Input.GetTouch(0).position);
             }
+#endif
         }
 
         public bool TryPlaceDefense(Vector2 inputPosition)

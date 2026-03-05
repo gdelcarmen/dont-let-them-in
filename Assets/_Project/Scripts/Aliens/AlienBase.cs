@@ -95,7 +95,8 @@ namespace DontLetThemIn.Aliens
 
             GridNode targetNode = _path[_nextPathIndex];
             float speed = Data != null ? Data.Speed : 2f;
-            transform.position = Vector3.MoveTowards(transform.position, targetNode.WorldPosition, speed * Time.deltaTime);
+            float deltaTime = Time.deltaTime > 0f ? Time.deltaTime : Time.unscaledDeltaTime;
+            transform.position = Vector3.MoveTowards(transform.position, targetNode.WorldPosition, speed * deltaTime);
 
             if (Vector3.Distance(transform.position, targetNode.WorldPosition) > 0.02f)
             {
