@@ -10,6 +10,7 @@ using DontLetThemIn.Grid;
 using DontLetThemIn.Hazards;
 using DontLetThemIn.UI;
 using DontLetThemIn.Utils;
+using DontLetThemIn.Visuals;
 using DontLetThemIn.Waves;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -40,6 +41,8 @@ namespace DontLetThemIn.Core
         [SerializeField] private float prepPhaseDurationSeconds = 15f;
         [SerializeField] private float floorTransitionDelaySeconds = 1.25f;
         [SerializeField] private bool autoSelectDraftForAutomation;
+        [Header("Visual Theme")]
+        [SerializeField] private VisualTheme visualTheme;
 
         private readonly GameStateMachine _stateMachine = new();
         private readonly List<IReadOnlyList<GridNode>> _debugPaths = new();
@@ -57,6 +60,7 @@ namespace DontLetThemIn.Core
         private HUDController _hud;
         private GridDebugDrawer _debugDrawer;
         private FloorRenderer _floorRenderer;
+        private VisualPresentationController _visualPresentation;
         private Transform _defenseRoot;
         private Coroutine _prepRoutine;
         private Coroutine _transitionRoutine;
@@ -581,6 +585,7 @@ namespace DontLetThemIn.Core
 
             _hazardSystem = FindOrCreateComponent<HazardSystem>("HazardSystem");
             _debugDrawer = FindOrCreateComponent<GridDebugDrawer>("GridDebug");
+            _visualPresentation = FindOrCreateComponent<VisualPresentationController>("VisualPresentation");
 
             _killCount = 0;
             _totalScrapEarned = 0;
@@ -602,6 +607,9 @@ namespace DontLetThemIn.Core
             _graph = FloorGraphBuilder.Build(layout);
 
             Camera camera = CameraSetup.EnsureTopDownCamera(_graph);
+            VisualThemeRuntime.SetActiveTheme(visualTheme != null ? visualTheme : VisualThemeRuntime.ActiveTheme);
+            _visualPresentation?.ApplyTheme(visualTheme != null ? visualTheme : VisualThemeRuntime.ActiveTheme, camera, _hud);
+            _hud?.ApplyTheme(VisualThemeRuntime.ActiveTheme);
 
             if (_floorRenderer == null)
             {
@@ -679,6 +687,8 @@ namespace DontLetThemIn.Core
 
             _hud.SetScrap(_scrapManager.CurrentScrap);
             _hud.SetStatus(status);
+            _floorRenderer?.SetWaveThreatActive(false);
+            _hud?.SetWaveStateActive(false);
 
             BeginPrepPhase();
         }
@@ -710,6 +720,7 @@ namespace DontLetThemIn.Core
                 if (displaySeconds != lastDisplayed)
                 {
                     _hud.ShowPrepCountdown(displaySeconds);
+                    _hud.SetWaveStateActive(false);
                     lastDisplayed = displaySeconds;
                 }
 
@@ -763,6 +774,8 @@ namespace DontLetThemIn.Core
             _hud?.HideWaveCountdown();
             AudioManager.TryPlayWaveStart();
             _defensePlacement?.SetPlacementEnabled(false);
+            _floorRenderer?.SetWaveThreatActive(true);
+            _hud?.SetWaveStateActive(true);
             _currentWaveAliensSpawned = 0;
             _currentWaveAliensKilled = 0;
             _currentWaveAliensBreached = 0;
@@ -777,6 +790,7 @@ namespace DontLetThemIn.Core
 
             _hud?.SetWave(wave, total);
             _hud?.SetStatus($"Wave {wave}/{total} active.");
+            _visualPresentation?.PlayWaveStartBanner(wave, VisualThemeRuntime.ActiveTheme.Threat.WindowGlowColor);
         }
 
         private void OnWaveCompleted(int wave, int total, WaveConfig waveConfig)
@@ -791,6 +805,8 @@ namespace DontLetThemIn.Core
 
             AwardScrap(passiveWaveCompletionScrap);
             _hud?.SetStatus($"Wave {wave}/{total} cleared. +{passiveWaveCompletionScrap} Scrap");
+            _floorRenderer?.SetWaveThreatActive(false);
+            _hud?.SetWaveStateActive(false);
             _playtestLogger?.RecordWave(
                 CurrentFloorIndex,
                 ResolveFloorDisplayNameWithLoop(CurrentFloorIndex),
@@ -947,6 +963,7 @@ namespace DontLetThemIn.Core
             _defensePlacement?.SetPlacementEnabled(false);
             _stateMachine.ForceState(GameState.FloorClear);
             _hud?.SetStatus("Floor Cleared!");
+            _visualPresentation?.PlayFloorTransition("UPSTAIRS");
             LogCurrentFloorOutcome(cleared: true);
 
             int floorBeforeAdvance = CurrentFloorIndex;
@@ -1046,6 +1063,7 @@ namespace DontLetThemIn.Core
             _currentFloorStartingScrap = CalculateStartingScrapForCurrentFloor();
             SetScrapWithoutTracking(_currentFloorStartingScrap);
             _hud.SetStatus("Floor Lost - Retreating Upstairs");
+            _visualPresentation?.PlayFloorTransition("RETREAT");
 
             StopTransitionRoutine();
             _transitionRoutine = StartCoroutine(FloorLossTransitionRoutine());
@@ -1097,6 +1115,8 @@ namespace DontLetThemIn.Core
             _hud?.HideDraftPick();
             _hud?.HideWaveCountdown();
             _hud?.SetStatus(survived ? "YOU SURVIVED!" : "THEY GOT IN.");
+            _floorRenderer?.SetWaveThreatActive(false);
+            _hud?.SetWaveStateActive(false);
             RunEndStats stats = RunStatsCalculator.Build(
                 survived,
                 _runProgression?.FloorsCleared ?? 0,

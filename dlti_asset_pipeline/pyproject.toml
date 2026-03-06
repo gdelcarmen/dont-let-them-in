@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dlti-asset-pipeline"
+version = "0.1.0"
+description = "Standalone 3D asset pipeline infrastructure for Don't Let Them In."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Proprietary"}
+authors = [{name = "Codex"}]
+dependencies = [
+  "aiofiles>=24.1.0",
+  "numpy>=1.26.4",
+  "pillow>=11.1.0",
+  "pydantic>=2.8.2",
+  "pyyaml>=6.0.2",
+  "trimesh>=4.5.2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.4",
+  "pytest-asyncio>=0.25.3",
+]
+
+[project.scripts]
+dlti-pipeline = "dlti_asset_pipeline.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+dlti_asset_pipeline = [
+  "resources/**/*.yaml",
+  "resources/**/*.yml",
+  "resources/**/*.json",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

@@ -47,6 +47,8 @@ namespace DontLetThemIn.Hazards
         private DefensePlacementController _placement;
         private HUDController _hud;
         private AlienData _overlordData;
+        private FloorRenderer _floorRenderer;
+        private Visuals.VisualPresentationController _visualPresentation;
 
         private float _nextAllowedSurgeTime;
         private Coroutine _powerSurgeRoutine;
@@ -116,6 +118,8 @@ namespace DontLetThemIn.Hazards
             _hud = hud;
             _overlordData = overlordData;
             _bossEnabled = enableBossWaves;
+            _floorRenderer = FindFirstObjectByType<FloorRenderer>();
+            _visualPresentation = FindFirstObjectByType<Visuals.VisualPresentationController>();
 
             _placement.SetHazardSystem(this);
             _placement.DefensePlaced += OnDefensePlaced;
@@ -303,6 +307,7 @@ namespace DontLetThemIn.Hazards
         {
             IsPowerSurgeTelegraphing = true;
             SetPowerSurgeWarning(true);
+            _visualPresentation?.FlashAlert(new Color(1f, 0.38f, 0.18f, 1f), 0.16f, 0.22f);
 
             float elapsed = 0f;
             while (elapsed < powerSurgeTelegraphDuration)
@@ -316,6 +321,8 @@ namespace DontLetThemIn.Hazards
             IsPowerSurgeTelegraphing = false;
             IsPowerSurgeActive = true;
             AudioManager.TryPlayPowerSurge();
+            _floorRenderer?.PlayPowerSurgeFlicker();
+            _visualPresentation?.FlashAlert(new Color(1f, 0.22f, 0.12f, 1f), 0.3f, 0.35f);
             foreach (DefenseInstance defense in GetActiveSmartTechDefenses())
             {
                 defense.DisableFor(powerSurgeDisableDuration, "POWER SURGE");

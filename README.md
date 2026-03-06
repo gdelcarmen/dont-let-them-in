@@ -1,191 +1,174 @@
 # Don't Let Them In
 
-Home Alone. In space. Sort of.
+`Don't Let Them In` is a Unity-based iOS game project: a darkly comedic roguelike tower defense set inside a multi-story suburban house under alien attack. Players defend rooms and hallways with improvised household defenses, route control, hazards, and fast tactical repositioning.
 
-## Game Overview
+## Project Snapshot
 
-**Don't Let Them In** is a darkly comedic roguelike tower defense game for iOS.
-You defend a multi-story suburban home from alien intruders using improvised defenses,
-resource routing, and lane control under escalating wave pressure.
+- Genre: Roguelike tower defense
+- Platform target: iOS
+- Engine: Unity `2022.3.62f1`
+- Rendering: Universal Render Pipeline
+- Primary language: C#
+- Secondary tooling: Python asset pipeline in `dlti_asset_pipeline/`
 
-- Genre: Darkly Comedic Roguelike Tower Defense
-- Platform: iOS (App Store)
-- Monetization: Free-to-play, interstitial ads between runs, optional rewarded ads
-- Engine: Unity LTS (URP 2D template), C#, IL2CPP for iOS
+## Core Design Pillars
 
-## Elevator Pitch
+- Readability at phone scale: enemies, defenses, and hazards need to parse instantly.
+- Domestic improvisation: traps and weapons are built from familiar household objects.
+- Route manipulation: pathing and floor layout are central to play, not just presentation.
+- Strong tone contrast: cozy suburban interiors versus cold alien lighting and pressure.
+- Run variety: waves, layouts, picks, and upgrades should produce different tactical problems.
 
-Aliens are outside and they want in. Draft defenses between floors, place traps and gadgets,
-reroute invaders through kill zones, and protect the Safe Room. Every run changes floor layout,
-wave composition, and tactical priorities.
-
-## Technical Stack
-
-- Unity LTS: `2022.3.62f1` (project metadata target)
-- Rendering: URP + 2D-friendly top-down orthographic setup
-- Language: C#
-- Scripting backend target: IL2CPP for iOS (set by editor setup automation)
-- CI: GitHub Actions + GameCI + dotnet-format
-
-## Project Structure
+## Repository Layout
 
 ```text
-Assets/
-├── _Project/
-│   ├── Scripts/
-│   │   ├── Core/
-│   │   ├── Grid/
-│   │   ├── Aliens/
-│   │   ├── Defenses/
-│   │   ├── Economy/
-│   │   ├── Waves/
-│   │   ├── Hazards/
-│   │   ├── UI/
-│   │   ├── Audio/
-│   │   └── Utils/
-│   ├── ScriptableObjects/
-│   │   ├── WaveConfigs/
-│   │   ├── DefenseData/
-│   │   ├── AlienData/
-│   │   └── FloorLayouts/
-│   ├── Prefabs/
-│   │   ├── Aliens/
-│   │   ├── Defenses/
-│   │   ├── Environment/
-│   │   └── UI/
-│   ├── Art/
-│   │   ├── Sprites/
-│   │   ├── Materials/
-│   │   ├── VFX/
-│   │   └── Fonts/
-│   ├── Audio/
-│   │   ├── Music/
-│   │   └── SFX/
-│   └── Scenes/
-├── _Tests/
-│   ├── EditMode/
-│   └── PlayMode/
-└── Plugins/
+.
+├── Assets/
+│   ├── _Project/
+│   │   ├── Prefabs/
+│   │   ├── Scenes/
+│   │   ├── ScriptableObjects/
+│   │   └── Scripts/
+│   └── _Tests/
+├── Packages/
+├── ProjectSettings/
+├── docs/
+├── dlti_asset_pipeline/
+├── scripts/
+└── tools/
 ```
 
-### Where Each System Lives
+## Main Runtime Areas
 
-- Grid + pathing + debug: `Assets/_Project/Scripts/Grid`
-- Alien logic and types: `Assets/_Project/Scripts/Aliens`
-- Defense placement and combat hooks: `Assets/_Project/Scripts/Defenses`
-- Scrap economy: `Assets/_Project/Scripts/Economy`
-- Wave loop + spawn timing: `Assets/_Project/Scripts/Waves`
-- Runtime orchestration: `Assets/_Project/Scripts/Core/GameManager.cs`
-- HUD and restart flow: `Assets/_Project/Scripts/UI`
-- Unity editor auto-setup (assets/scenes/IL2CPP): `Assets/_Project/Scripts/Utils/Editor`
+- `Assets/_Project/Scripts/Core`: game orchestration and runtime bootstrap
+- `Assets/_Project/Scripts/Grid`: floor layout, graph logic, and pathing support
+- `Assets/_Project/Scripts/Aliens`: alien data and behavior
+- `Assets/_Project/Scripts/Defenses`: placement, combat, and defense behavior
+- `Assets/_Project/Scripts/Economy`: resource and progression systems
+- `Assets/_Project/Scripts/Waves`: wave sequencing and spawns
+- `Assets/_Project/Scripts/Hazards`: environmental hazards and special events
+- `Assets/_Project/Scripts/UI`: HUD and interface flow
+- `Assets/_Project/Scripts/Utils/Editor`: editor automation and project setup tools
+- `Assets/_Project/Scripts/Visuals`: visual theme and presentation helpers
 
-## Setup Instructions
+## Current Scope
 
-1. Clone:
-   - `git clone <repo-url>`
-   - `cd dont-let-them-in`
-2. Install Unity LTS `2022.3.62f1` (or nearest compatible 2022.3 LTS) with iOS build support.
-3. Open the project in Unity Hub.
-4. On first load, the editor setup script auto-generates:
-   - Ground Floor ScriptableObject assets
-   - `MainMenu`, `GameScene`, `MetaUpgrades` scenes
-   - iOS IL2CPP player settings
-5. Open `Assets/_Project/Scenes/GameScene.unity` and press Play.
+This repository contains two related codebases:
 
-## Stage 1 Prototype Behavior
+1. The Unity game project.
+2. A standalone Python asset pipeline in `dlti_asset_pipeline/` for future image-to-3D and content production workflows.
 
-- Ground Floor grid renders with room/hallway coloring.
-- Entry points are blue-highlighted; Safe Room is green.
-- Node graph supports states: `Open`, `Blocked`, `HazardActive`, `Destroyed`.
-- Pathfinding is waypoint-based (A*), not NavMesh.
-- Clicking/tapping places a defense node (scrap cost deducted).
-- Alien `Grey` spawns and follows path toward Safe Room.
-- Node changes trigger alien rerouting.
-- Defenses damage aliens when they enter attack range (default entry-node trap).
-- HUD includes Scrap (top-left), Wave (top-center), Integrity (top-right), restart button.
-- Game over at zero integrity; victory after all waves clear.
+The pipeline is structured around stable interfaces so mock implementations can be used now and real backends can be added later without changing the game-side integration points.
 
-## Stage 2 Progress (Wave + Spawning)
+## Getting Started
 
-- Wave directives support entry-point strategies: `Fixed`, `RoundRobin`, and `Random`.
-- Wave configs support `PreWaveDelay` and `PostWaveDelay`.
-- Spawner supports multiple alien subtypes via `AlienFactory` (`Grey`, `Stalker`, `TechUnit`, `Overlord` placeholders).
-- Runtime wave set now includes multi-wave mixed-alien progression for early prototype tuning.
-- PlayMode tests expanded for subtype spawning and round-robin entry behavior.
-- Deferred Unity/manual verification tracking:
-  - `docs/stage2_wave_system_status.md`
-  - `docs/stage2_wave_system_deferred_log.json`
+### Requirements
 
-## Build Instructions (iOS)
+- Unity Hub
+- Unity `2022.3.62f1`
+- iOS build support in Unity if targeting device builds
+- Xcode for signing and packaging iOS builds
 
-1. In Unity: `File -> Build Settings -> iOS`.
-2. Confirm `IL2CPP` in `Project Settings -> Player -> Other Settings -> Scripting Backend`.
-3. Build to an Xcode project directory.
-4. Open generated `.xcodeproj`/`.xcworkspace` in Xcode.
-5. Select signing team, archive, and submit via Organizer.
+### Open The Project
 
-## CI/CD
+```bash
+git clone https://github.com/gdelcarmen/dont-let-them-in.git
+cd dont-let-them-in
+```
 
-GitHub Actions workflows:
+Open the folder in Unity Hub and allow the initial import to finish.
 
-- `unity-tests.yml`
-  - Uses `game-ci/unity-test-runner` for EditMode + PlayMode.
-- `unity-build.yml`
-  - Uses `game-ci/unity-builder` to perform `StandaloneOSX` proxy build with custom build method.
-- `csharp-lint.yml`
-  - Uses `dotnet-format` checks for C# style/whitespace.
+Primary scenes:
 
-Required repo secret for GameCI workflows:
+- `Assets/_Project/Scenes/GameScene.unity`
+- `Assets/_Project/Scenes/MainMenu.unity`
+- `Assets/_Project/Scenes/MetaUpgrades.unity`
 
-- `UNITY_LICENSE`
+## Gameplay / Feature Status
 
-If Unity license secrets are not configured yet, Unity build/test jobs auto-skip with a clear log message so baseline CI remains green while repository bootstrap and non-Unity checks continue.
+The project already includes substantial scaffolding and implementation work, including:
 
-## Agent Pipeline (10 Stages)
+- multi-floor layout and pathing systems
+- alien spawning and wave progression
+- defense placement and combat scaffolding
+- hazard systems
+- economy and progression groundwork
+- UI and HUD structure
+- editor tooling for setup and visual-theme generation
 
-1. Floor Layout & Path System - **Complete**
-2. Alien Spawning & Wave System - **Complete**
-3. Defense Placement & Combat - **Complete**
-4. Hazard & Special Systems - **Complete**
-5. Floor Progression & Multi-Floor System - **Complete**
-6. Economy, Draft Picks & UI - **Complete**
-7. Meta Progression - **Complete**
-8. Asset Integration - **Complete**
-9. Playtesting Loop - **Complete**
-10. Store Prep - **Complete**
+## Testing
 
-## Design Document Reference
+### Unity tests
 
-This repository is initialized from the Stage 1 seed direction for **Don't Let Them In**.
-Core loop target:
+Unity tests live under `Assets/_Tests/`.
 
-- 3-floor run progression
-- Draft picks between floors
-- Safe Room defense objective
-- 4 defense categories (A/B/C/D)
-- 3+ alien classes (Grey, Stalker, TechUnit, Overlord)
+- Edit Mode: `Assets/_Tests/EditMode`
+- Play Mode: `Assets/_Tests/PlayMode`
 
-## Contribution Conventions
+### Python asset pipeline tests
 
-- Branch naming:
-  - `main` for stable baseline
-  - `codex/<topic-or-date>` for implementation sweeps
-- Commit style:
-  - Conventional commits (`feat:`, `fix:`, `chore:`, `test:`)
-- PR format:
-  - Summary
-  - What changed
-  - Test evidence (EditMode/PlayMode/CI)
-  - Risks and follow-up tasks
+```bash
+cd dlti_asset_pipeline
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .[dev]
+pytest tests -q
+```
 
-## Experiment Log
+## Build And CI
 
-`experiment_log.json` is a structured research artifact capturing pipeline stage actions,
-outcomes, retries, and intervention notes. Update it at the end of each stage so technical
-and process decisions remain auditable.
+GitHub Actions workflows are already present under `.github/workflows/` for:
 
-Deferred Unity validations are tracked in `docs/stage1_unity_verification_checklist.md` and should be completed before promoting Stage 1 from partial to fully verified.
-Structured deferred-check state is also tracked in `docs/stage1_deferred_verification_log.json`.
-Execution instructions and evidence template are available in `docs/stage1_verification_runbook.md` and `docs/stage1_verification_evidence.template.json`.
+- C# linting
+- Unity tests
+- Unity builds
 
-Initialization completion/deferred status for the 10-point setup checklist is tracked in `docs/stage1_initialization_status.md`.
+Unity CI generally expects a `UNITY_LICENSE` secret when running licensed build or test steps in GitHub Actions.
+
+Typical iOS build flow:
+
+1. Switch the Unity build target to `iOS`.
+2. Confirm `IL2CPP` is selected in Player Settings.
+3. Build the Xcode project from Unity.
+4. Open the generated project in Xcode.
+5. Sign, archive, validate, and distribute.
+
+## Python Asset Pipeline
+
+The `dlti_asset_pipeline/` project is a separate, backend-agnostic pipeline for asset generation and processing. It currently includes:
+
+- typed configuration and asset definitions
+- style resolution and catalog support
+- mock image generation
+- mock mesh reconstruction
+- post-processing and quality-gate scaffolding
+- registry and experiment-log support
+- preview/export helpers
+
+Useful references:
+
+- `dlti_asset_pipeline/README.md`
+- `dlti_asset_pipeline/docs/adding_a_new_backend.md`
+- `dlti_asset_pipeline/docs/gpu_environment_setup.md`
+- `dlti_asset_pipeline/docs/unity_integration.md`
+
+## Additional Docs
+
+Project notes and runbooks live in `docs/`, including:
+
+- `docs/app_store_metadata.md`
+- `docs/balance_log.md`
+- `docs/stage1_initialization_status.md`
+- `docs/stage1_unity_verification_checklist.md`
+- `docs/stage1_verification_runbook.md`
+- `docs/stage2_wave_system_status.md`
+
+## Development Notes
+
+- Default branch: `main`
+- Working branch prefix for focused changes: `codex/`
+- Preferred commit prefixes: `feat:`, `fix:`, `chore:`, `test:`, `docs:`
+
+## License
+
+No license file is currently included. Unless and until one is added, treat the project code and game content as proprietary.

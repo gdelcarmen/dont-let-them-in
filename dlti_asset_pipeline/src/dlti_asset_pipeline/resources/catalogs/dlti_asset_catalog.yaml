@@ -1,0 +1,143 @@
+assets:
+  - asset_name: couch
+    category: furniture
+    description: "a cozy suburban couch with soft cushions and a rumpled throw blanket"
+    target_triangle_budget: 1800
+    tags: ["living-room", "warm-interior"]
+  - asset_name: dining_table
+    category: furniture
+    description: "a chunky wooden dining table sized for a suburban family home"
+    target_triangle_budget: 1600
+  - asset_name: kitchen_table
+    category: furniture
+    description: "a compact kitchen breakfast table with simple chairs implied in the silhouette"
+  - asset_name: bed_single
+    category: furniture
+    description: "a single bed with a slightly exaggerated pillow and blanket silhouette"
+  - asset_name: bed_double
+    category: furniture
+    description: "a double bed with thick mattress proportions and readable bedding folds"
+  - asset_name: bookshelf
+    category: furniture
+    description: "a tall bookshelf with chunky shelves and unevenly stacked books"
+  - asset_name: floor_lamp
+    category: furniture
+    description: "a standing floor lamp with a warm shade and playful proportions"
+  - asset_name: table_lamp
+    category: furniture
+    description: "a compact table lamp with a stout base and warm domestic character"
+  - asset_name: tv_on_stand
+    category: furniture
+    description: "a slightly old television on a low stand, readable from top-down play"
+  - asset_name: refrigerator
+    category: furniture
+    description: "a bulky refrigerator with rounded corners and suburban kitchen personality"
+  - asset_name: oven_stove
+    category: furniture
+    description: "a kitchen oven and stove unit with large readable knobs"
+  - asset_name: washing_machine
+    category: furniture
+    description: "a front-loading washing machine with an exaggerated circular door"
+  - asset_name: armchair
+    category: furniture
+    description: "a padded armchair with a rounded silhouette and inviting warm materials"
+  - asset_name: coffee_table
+    category: furniture
+    description: "a low coffee table with chunky legs and a family-room silhouette"
+  - asset_name: bathtub
+    category: furniture
+    description: "a simple bathtub with stylized fixtures and clear bathroom readability"
+  - asset_name: basic_tripwire_trap
+    category: defense
+    description: "an improvised tripwire trap made from household materials and duct tape"
+    tags: ["trap", "household"]
+  - asset_name: electrified_floor_mat
+    category: defense
+    description: "an electrified floor mat with visible cable routing and a clear hazard silhouette"
+  - asset_name: microwave_turret
+    category: defense
+    description: "a microwave converted into a turret with a chunky improvised barrel"
+  - asset_name: vacuum_cannon
+    category: defense
+    description: "a vacuum cannon built from a household vacuum with a readable intake nozzle"
+  - asset_name: weaponized_roomba
+    category: defense
+    description: "a weaponized roomba with a bold top silhouette and comedic menace"
+  - asset_name: guard_dog
+    category: defense
+    description: "a loyal guard dog with cartoonish proportions and a defensive stance"
+  - asset_name: shotgun_turret_mounted
+    category: defense
+    description: "a mounted shotgun turret assembled from wood planks and improvised brackets"
+  - asset_name: barricade_wooden
+    category: defense
+    description: "a wooden barricade of planks and furniture scraps blocking a doorway"
+  - asset_name: barricade_metal
+    category: defense
+    description: "a metal barricade with bolted sheets and a hastily reinforced shape"
+  - asset_name: ceiling_fan_blade_trap
+    category: defense
+    description: "a ceiling fan blade trap reworked into a spinning hazard assembly"
+  - asset_name: grey_scout
+    category: enemy
+    description: "a Grey Scout alien with oversized head, thin limbs, and glowing cold accents"
+    style_overrides:
+      color_palette_keywords:
+        - "cold blue-white glow"
+        - "bioluminescent green accents"
+        - "cold purple teal"
+  - asset_name: brute
+    category: enemy
+    description: "an armored Brute alien with a heavy readable silhouette and glowing seams"
+  - asset_name: wraith
+    category: enemy
+    description: "a phasing Wraith alien with soft ghostlike contours and emissive core lines"
+  - asset_name: crawler_swarm_unit
+    category: enemy
+    description: "a low-profile Crawler swarm alien with a fast insectoid silhouette"
+  - asset_name: spitter
+    category: enemy
+    description: "a ranged Spitter alien with a swollen glowing sac and readable posture"
+  - asset_name: overlord_boss
+    category: enemy
+    description: "the Overlord boss, a large alien commander with dramatic emissive armor"
+    target_triangle_budget: 5000
+  - asset_name: interior_wall_segment
+    category: environmental
+    description: "a modular interior wall segment with painted drywall and warm trim"
+  - asset_name: wooden_door
+    category: environmental
+    description: "a suburban wooden door with chunky readable panels"
+  - asset_name: window_closed
+    category: environmental
+    description: "a closed window with cool exterior light leaking around the frame"
+  - asset_name: window_broken
+    category: environmental
+    description: "a broken window with jagged shards and cold alien light spilling through"
+  - asset_name: air_vent
+    category: environmental
+    description: "a household air vent with a simple bold grate pattern"
+  - asset_name: staircase_segment
+    category: environmental
+    description: "a staircase segment designed for top-down readability and modular placement"
+  - asset_name: floor_tile
+    category: environmental
+    description: "a square floor tile piece with subtle suburban wear and warm material definition"
+  - asset_name: exterior_wall_with_siding
+    category: environmental
+    description: "an exterior suburban wall with siding and a clear structural silhouette"
+  - asset_name: projectile_base_sphere
+    category: vfx
+    description: "a clean projectile base sphere for particle and projectile source meshes"
+  - asset_name: explosion_core
+    category: vfx
+    description: "a simple explosion core mesh with bright saturated emissive surfaces"
+  - asset_name: electricity_arc_node
+    category: vfx
+    description: "an electricity arc anchor node with glowing energy-friendly geometry"
+  - asset_name: alien_goo_splat
+    category: vfx
+    description: "a stylized alien goo splat source shape with readable asymmetry"
+  - asset_name: shield_bubble
+    category: vfx
+    description: "a shield bubble source mesh with smooth simple geometry and emissive potential"

@@ -1,0 +1,11 @@
+style_name: fixture_style
+base_prompt_template: "Stylized {asset_description}, {palette_keywords}, {art_style_keywords}, {camera_angle}"
+negative_prompt: "photorealistic"
+color_palette_keywords:
+  - "warm cream tones"
+art_style_keywords:
+  - "stylized"
+  - "chunky"
+background_preference: white
+camera_angle_preference: "3/4 top-down view"
+output_dimensions: [1024, 1024]

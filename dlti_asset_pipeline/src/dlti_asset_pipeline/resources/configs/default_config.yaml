@@ -1,0 +1,32 @@
+image_generator:
+  backend: mock
+  api_key_env_var: OPENAI_API_KEY
+  default_resolution: [1024, 1024]
+  default_quality: medium
+reconstructor:
+  backend: mock
+  model_path: null
+  device_preference: cpu
+  output_format: glb
+postprocessing:
+  run_uv_repacking: false
+  automatic_decimation: true
+  operation_sequence:
+    - orientation_fix
+    - scale_normalization
+    - decimation
+    - format_conversion
+storage:
+  base_output_directory: "${PWD}/dlti_asset_pipeline/output"
+  organize_by_category: true
+  image_format: PNG
+  registry_directory: "${PWD}/dlti_asset_pipeline/output/registry"
+  experiment_log_path: "${PWD}/dlti_asset_pipeline/output/experiment_log.jsonl"
+  viewer_directory: "${PWD}/dlti_asset_pipeline/output/viewers"
+quality_gate:
+  minimum_uv_coverage_ratio: 0.45
+  enforced: false
+  file_size_budget_bytes: 2097152
+unity_integration:
+  assets_directory: "${PWD}/Assets/GeneratedAssets"
+  unity_mcp_available: false

@@ -1,4 +1,6 @@
+using System.Collections;
 using System.Collections.Generic;
+using DontLetThemIn.Visuals;
 using UnityEngine;
 
 namespace DontLetThemIn.Grid
@@ -9,20 +11,30 @@ namespace DontLetThemIn.Grid
         {
             public GameObject Root;
             public SpriteRenderer Base;
+            public SpriteRenderer Grain;
+            public SpriteRenderer RoomLight;
             public SpriteRenderer EntryGlow;
+            public SpriteRenderer WindowSlats;
             public SpriteRenderer SafeRoomTint;
             public SpriteRenderer WeakPointTint;
             public SpriteRenderer BarricadeTint;
+            public SpriteRenderer WallFace;
+            public SpriteRenderer WallCap;
             public GameObject CrackRoot;
         }
 
         private readonly Dictionary<GridNode, TileVisual> _tileVisuals = new();
+        private readonly List<SpriteRenderer> _roomLights = new();
         private readonly List<EntryGlowVisual> _entryGlows = new();
         private NodeGraph _graph;
+        private bool _waveThreatActive;
+        private Coroutine _powerSurgeRoutine;
+        private float _roomLightMultiplier = 1f;
 
         private struct EntryGlowVisual
         {
-            public SpriteRenderer Renderer;
+            public SpriteRenderer Glow;
+            public SpriteRenderer Slats;
             public float PhaseOffset;
         }
 
@@ -34,6 +46,7 @@ namespace DontLetThemIn.Grid
             }
 
             _tileVisuals.Clear();
+            _roomLights.Clear();
             _entryGlows.Clear();
 
             for (int i = transform.childCount - 1; i >= 0; i--)
@@ -56,7 +69,6 @@ namespace DontLetThemIn.Grid
             }
 
             _graph.NodeChanged += OnNodeChanged;
-
             foreach (GridNode node in _graph.Nodes)
             {
                 CreateTile(node);
@@ -66,20 +78,61 @@ namespace DontLetThemIn.Grid
             BuildGridOverlay();
         }
 
+        public void SetWaveThreatActive(bool active)
+        {
+            _waveThreatActive = active;
+        }
+
+        public void PlayPowerSurgeFlicker()
+        {
+            if (_powerSurgeRoutine != null)
+            {
+                StopCoroutine(_powerSurgeRoutine);
+            }
+
+            _powerSurgeRoutine = StartCoroutine(PowerSurgeFlickerRoutine());
+        }
+
         private void Update()
         {
-            for (int i = 0; i < _entryGlows.Count; i++)
+            VisualTheme theme = VisualThemeRuntime.ActiveTheme;
+            float roomPulse = 0.95f + Mathf.Sin(Time.unscaledTime * 1.6f) * 0.05f;
+            for (int i = 0; i < _roomLights.Count; i++)
             {
-                EntryGlowVisual glow = _entryGlows[i];
-                if (glow.Renderer == null || !glow.Renderer.gameObject.activeSelf)
+                SpriteRenderer renderer = _roomLights[i];
+                if (renderer == null)
                 {
                     continue;
                 }
 
-                float pulse = Mathf.Lerp(0.18f, 0.46f, Mathf.PingPong(Time.unscaledTime * 1.9f + glow.PhaseOffset, 1f));
-                Color c = glow.Renderer.color;
-                c.a = pulse;
-                glow.Renderer.color = c;
+                Color color = theme.Interior.LampLightColor;
+                color.a = theme.Interior.LampLightIntensity * roomPulse * _roomLightMultiplier;
+                renderer.color = color;
+            }
+
+            for (int i = 0; i < _entryGlows.Count; i++)
+            {
+                EntryGlowVisual glow = _entryGlows[i];
+                if (glow.Glow == null)
+                {
+                    continue;
+                }
+
+                float waveBonus = _waveThreatActive ? 0.22f : 0f;
+                float pulse = Mathf.Lerp(
+                    theme.Threat.AlienLightIntensityRange.x,
+                    theme.Threat.AlienLightIntensityRange.y + waveBonus,
+                    0.5f + 0.5f * Mathf.Sin((Time.unscaledTime * Mathf.Lerp(1.8f, 3.1f, theme.Threat.AlienLightPulseSpeed)) + glow.PhaseOffset));
+                Color glowColor = theme.Threat.AlienLightColor;
+                glowColor.a = pulse * theme.Threat.ThreatIntensityMultiplier;
+                glow.Glow.color = glowColor;
+
+                if (glow.Slats != null)
+                {
+                    Color slatColor = theme.Threat.WindowGlowColor;
+                    slatColor.a = pulse * 0.8f;
+                    glow.Slats.color = slatColor;
+                }
             }
         }
 
@@ -103,9 +156,21 @@ namespace DontLetThemIn.Grid
                 visual.Base.color = ResolveBaseColor(node);
             }
 
+            if (visual.Grain != null)
+            {
+                Color grainColor = ResolveDetailColor(node);
+                grainColor.a = 0.22f;
+                visual.Grain.color = grainColor;
+            }
+
             if (visual.EntryGlow != null)
             {
                 visual.EntryGlow.gameObject.SetActive(node.IsEntryPoint);
+            }
+
+            if (visual.WindowSlats != null)
+            {
+                visual.WindowSlats.gameObject.SetActive(node.IsEntryPoint);
             }
 
             if (visual.SafeRoomTint != null)
@@ -133,151 +198,119 @@ namespace DontLetThemIn.Grid
 
         private void CreateTile(GridNode node)
         {
+            VisualTheme theme = VisualThemeRuntime.ActiveTheme;
+
             GameObject tileRoot = new($"Node_{node.GridPosition.x}_{node.GridPosition.y}");
             tileRoot.transform.SetParent(transform, false);
             tileRoot.transform.position = node.WorldPosition;
 
-            SpriteRenderer baseRenderer = tileRoot.AddComponent<SpriteRenderer>();
-            baseRenderer.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetPaperSprite();
-            baseRenderer.color = ResolveBaseColor(node);
-            baseRenderer.sortingOrder = 0;
+            TileVisual visual = new() { Root = tileRoot };
 
-            TileVisual visual = new()
+            visual.Base = CreateRenderer(tileRoot.transform, "Base", global::DontLetThemIn.RuntimeSpriteFactory.GetPaperSprite(), Vector3.zero, new Vector3(1.04f, 1.04f, 1f), ResolveBaseColor(node), 0);
+            visual.Grain = CreateRenderer(tileRoot.transform, "Grain", global::DontLetThemIn.RuntimeSpriteFactory.GetPaperSprite(), Vector3.zero, new Vector3(1.02f, 1.02f, 1f), new Color(1f, 1f, 1f, 0.2f), 1);
+            visual.Grain.color = new Color(ResolveDetailColor(node).r, ResolveDetailColor(node).g, ResolveDetailColor(node).b, 0.18f);
+
+            SpriteRenderer dropShadow = CreateRenderer(tileRoot.transform, "BaseShadow", global::DontLetThemIn.RuntimeSpriteFactory.GetSoftCircleSprite(), new Vector3(0.06f, -0.06f, 0f), new Vector3(1.18f, 0.9f, 1f), new Color(0f, 0f, 0f, 0.12f), -1);
+            dropShadow.color = new Color(0f, 0f, 0f, theme.Interior.ShadowDarkness * 0.22f);
+
+            if (node.VisualType != NodeVisualType.Wall)
             {
-                Root = tileRoot,
-                Base = baseRenderer
-            };
+                visual.RoomLight = CreateRenderer(
+                    tileRoot.transform,
+                    "RoomLight",
+                    global::DontLetThemIn.RuntimeSpriteFactory.GetSoftCircleSprite(),
+                    new Vector3(0f, 0.06f, 0f),
+                    new Vector3(1.25f, 1.05f, 1f),
+                    new Color(theme.Interior.LampLightColor.r, theme.Interior.LampLightColor.g, theme.Interior.LampLightColor.b, theme.Interior.LampLightIntensity),
+                    2);
+                _roomLights.Add(visual.RoomLight);
+            }
 
-            SpriteRenderer glow = CreateOverlay(
+            visual.EntryGlow = CreateRenderer(
                 tileRoot.transform,
                 "EntryGlow",
                 global::DontLetThemIn.RuntimeSpriteFactory.GetSoftCircleSprite(),
-                new Vector3(1.42f, 1.42f, 1f),
-                new Color(0.62f, 0.88f, 1f, 0.32f),
-                2);
-            glow.gameObject.SetActive(node.IsEntryPoint);
-            visual.EntryGlow = glow;
-            _entryGlows.Add(new EntryGlowVisual
-            {
-                Renderer = glow,
-                PhaseOffset = (node.GridPosition.x * 0.27f) + (node.GridPosition.y * 0.17f)
-            });
-
-            SpriteRenderer safeTint = CreateOverlay(
-                tileRoot.transform,
-                "SafeRoomTint",
-                global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(),
-                new Vector3(1.08f, 1.08f, 1f),
-                new Color(0.26f, 0.86f, 0.38f, 0.35f),
-                2);
-            safeTint.gameObject.SetActive(node.IsSafeRoom);
-            visual.SafeRoomTint = safeTint;
-
-            SpriteRenderer weakPointTint = CreateOverlay(
-                tileRoot.transform,
-                "WeakPointTint",
-                global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(),
-                new Vector3(0.96f, 0.96f, 1f),
-                new Color(0.93f, 0.58f, 0.38f, 0.45f),
-                1);
-            bool showWeakPoint = node.IsStructuralWeakPoint && !node.IsWeakPointBreached && !node.IsWeakPointBarricaded;
-            weakPointTint.gameObject.SetActive(showWeakPoint);
-            visual.WeakPointTint = weakPointTint;
-
-            SpriteRenderer barricadeTint = CreateOverlay(
-                tileRoot.transform,
-                "BarricadeTint",
-                global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(),
-                new Vector3(0.98f, 0.98f, 1f),
-                new Color(0.34f, 0.45f, 0.6f, 0.65f),
+                new Vector3(0f, 0f, 0f),
+                new Vector3(1.56f, 1.1f, 1f),
+                new Color(theme.Threat.AlienLightColor.r, theme.Threat.AlienLightColor.g, theme.Threat.AlienLightColor.b, 0.35f),
                 3);
-            barricadeTint.gameObject.SetActive(node.IsWeakPointBarricaded);
-            visual.BarricadeTint = barricadeTint;
+            visual.EntryGlow.gameObject.SetActive(node.IsEntryPoint);
 
-            GameObject crackRoot = CreateCrackOverlay(tileRoot.transform);
-            crackRoot.SetActive(showWeakPoint);
-            visual.CrackRoot = crackRoot;
-
-            _tileVisuals[node] = visual;
-        }
-
-        private static SpriteRenderer CreateOverlay(
-            Transform parent,
-            string name,
-            Sprite sprite,
-            Vector3 scale,
-            Color color,
-            int sortingOrder)
-        {
-            GameObject overlay = new(name);
-            overlay.transform.SetParent(parent, false);
-            overlay.transform.localScale = scale;
-            SpriteRenderer renderer = overlay.AddComponent<SpriteRenderer>();
-            renderer.sprite = sprite;
-            renderer.color = color;
-            renderer.sortingOrder = sortingOrder;
-            return renderer;
-        }
-
-        private static GameObject CreateCrackOverlay(Transform parent)
-        {
-            GameObject root = new("WeakPointCrack");
-            root.transform.SetParent(parent, false);
-
-            Sprite crackSprite = global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite();
-            Color crackColor = new(0.36f, 0.2f, 0.16f, 0.9f);
-
-            GameObject slashA = new("SlashA");
-            slashA.transform.SetParent(root.transform, false);
-            slashA.transform.localScale = new Vector3(0.62f, 0.08f, 1f);
-            slashA.transform.localRotation = Quaternion.Euler(0f, 0f, 24f);
-            SpriteRenderer aRenderer = slashA.AddComponent<SpriteRenderer>();
-            aRenderer.sprite = crackSprite;
-            aRenderer.color = crackColor;
-            aRenderer.sortingOrder = 4;
-
-            GameObject slashB = new("SlashB");
-            slashB.transform.SetParent(root.transform, false);
-            slashB.transform.localPosition = new Vector3(0.08f, -0.05f, 0f);
-            slashB.transform.localScale = new Vector3(0.42f, 0.06f, 1f);
-            slashB.transform.localRotation = Quaternion.Euler(0f, 0f, -22f);
-            SpriteRenderer bRenderer = slashB.AddComponent<SpriteRenderer>();
-            bRenderer.sprite = crackSprite;
-            bRenderer.color = crackColor;
-            bRenderer.sortingOrder = 4;
-
-            return root;
-        }
-
-        private Color ResolveBaseColor(GridNode node)
-        {
-            if (node.State == NodeState.Destroyed)
-            {
-                return new Color(0.08f, 0.08f, 0.08f, 1f);
-            }
-
-            if (node.State == NodeState.Blocked && node.VisualType != NodeVisualType.Wall)
-            {
-                return new Color(0.44f, 0.25f, 0.22f, 1f);
-            }
-
-            if (node.VisualType == NodeVisualType.Wall)
-            {
-                return new Color(0.15f, 0.12f, 0.1f, 1f);
-            }
+            visual.WindowSlats = CreateRenderer(
+                tileRoot.transform,
+                "WindowSlats",
+                global::DontLetThemIn.RuntimeSpriteFactory.GetPaperSprite(),
+                new Vector3(0f, 0.08f, 0f),
+                new Vector3(0.82f, 0.22f, 1f),
+                new Color(theme.Threat.WindowGlowColor.r, theme.Threat.WindowGlowColor.g, theme.Threat.WindowGlowColor.b, 0.35f),
+                4);
+            visual.WindowSlats.gameObject.SetActive(node.IsEntryPoint);
 
             if (node.IsEntryPoint)
             {
-                return node.VisualType == NodeVisualType.Hallway
-                    ? new Color(0.52f, 0.42f, 0.32f, 1f)
-                    : new Color(0.56f, 0.46f, 0.36f, 1f);
+                _entryGlows.Add(new EntryGlowVisual
+                {
+                    Glow = visual.EntryGlow,
+                    Slats = visual.WindowSlats,
+                    PhaseOffset = (node.GridPosition.x * 0.22f) + (node.GridPosition.y * 0.17f)
+                });
             }
 
-            return node.VisualType switch
+            visual.SafeRoomTint = CreateRenderer(
+                tileRoot.transform,
+                "SafeRoomTint",
+                global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(),
+                Vector3.zero,
+                new Vector3(1.04f, 1.04f, 1f),
+                new Color(0.22f, 0.56f, 0.28f, 0.28f),
+                5);
+            visual.SafeRoomTint.gameObject.SetActive(node.IsSafeRoom);
+
+            visual.WeakPointTint = CreateRenderer(
+                tileRoot.transform,
+                "WeakPointTint",
+                global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(),
+                Vector3.zero,
+                new Vector3(0.98f, 0.98f, 1f),
+                new Color(0.93f, 0.58f, 0.38f, 0.45f),
+                5);
+            bool showWeakPoint = node.IsStructuralWeakPoint && !node.IsWeakPointBreached && !node.IsWeakPointBarricaded;
+            visual.WeakPointTint.gameObject.SetActive(showWeakPoint);
+
+            visual.BarricadeTint = CreateRenderer(
+                tileRoot.transform,
+                "BarricadeTint",
+                global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(),
+                Vector3.zero,
+                new Vector3(0.98f, 0.98f, 1f),
+                new Color(0.3f, 0.44f, 0.58f, 0.58f),
+                5);
+            visual.BarricadeTint.gameObject.SetActive(node.IsWeakPointBarricaded);
+
+            if (node.VisualType == NodeVisualType.Wall)
             {
-                NodeVisualType.Hallway => new Color(0.58f, 0.45f, 0.33f, 1f),
-                _ => new Color(0.73f, 0.61f, 0.46f, 1f)
-            };
+                visual.WallFace = CreateRenderer(
+                    tileRoot.transform,
+                    "WallFace",
+                    global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(),
+                    new Vector3(0f, -0.18f, 0f),
+                    new Vector3(1.06f, 0.48f, 1f),
+                    Color.Lerp(theme.Interior.PrimaryWallColor, Color.black, 0.18f),
+                    7);
+                visual.WallCap = CreateRenderer(
+                    tileRoot.transform,
+                    "WallCap",
+                    global::DontLetThemIn.RuntimeSpriteFactory.GetPaperSprite(),
+                    new Vector3(0f, 0.12f, 0f),
+                    new Vector3(1.04f, 0.42f, 1f),
+                    theme.Interior.PrimaryWallColor,
+                    8);
+            }
+
+            visual.CrackRoot = CreateCrackOverlay(tileRoot.transform);
+            visual.CrackRoot.SetActive(showWeakPoint);
+
+            _tileVisuals[node] = visual;
         }
 
         private void BuildFurnitureDecor()
@@ -287,9 +320,8 @@ namespace DontLetThemIn.Grid
                 return;
             }
 
-            int furnitureBudget = Mathf.Max(4, (_graph.Width * _graph.Height) / 10);
+            int furnitureBudget = Mathf.Max(6, (_graph.Width * _graph.Height) / 9);
             int placed = 0;
-
             foreach (GridNode node in _graph.Nodes)
             {
                 if (placed >= furnitureBudget)
@@ -307,41 +339,152 @@ namespace DontLetThemIn.Grid
                 }
 
                 int hash = Mathf.Abs(node.GridPosition.x * 92821 + node.GridPosition.y * 68917);
-                if (hash % 7 != 0)
+                if (hash % 5 != 0)
                 {
                     continue;
                 }
 
-                CreateFurnitureAt(node, hash % 3);
+                CreateFurnitureAt(node, hash % 4);
                 placed++;
             }
         }
 
         private void CreateFurnitureAt(GridNode node, int variant)
         {
+            VisualTheme theme = VisualThemeRuntime.ActiveTheme;
             GameObject decoRoot = new($"Decor_{node.GridPosition.x}_{node.GridPosition.y}");
             decoRoot.transform.SetParent(transform, false);
-            decoRoot.transform.position = node.WorldPosition + new Vector3(0f, 0f, -0.02f);
-            Color color = new(0.18f, 0.14f, 0.12f, 0.36f);
-            Sprite square = global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite();
-            Sprite circle = global::DontLetThemIn.RuntimeSpriteFactory.GetCircleSprite();
+            decoRoot.transform.position = node.WorldPosition + new Vector3(0f, -0.04f, -0.02f);
 
-            if (variant == 0)
+            AddDecorPiece(decoRoot.transform, "Shadow", global::DontLetThemIn.RuntimeSpriteFactory.GetSoftCircleSprite(), new Vector3(0.04f, -0.08f, 0f), new Vector3(0.72f, 0.44f, 1f), 0f, new Color(0f, 0f, 0f, theme.Interior.ShadowDarkness * 0.24f), 5);
+
+            Color furniture = Color.Lerp(theme.Interior.PrimaryFloorTint, new Color(0.18f, 0.12f, 0.08f, 1f), 0.55f);
+            Color accent = Color.Lerp(theme.Interior.LampLightColor, Color.white, 0.22f);
+
+            switch (variant)
             {
-                AddDecorPiece(decoRoot.transform, "CouchSeat", square, new Vector3(0f, -0.04f, 0f), new Vector3(0.56f, 0.22f, 1f), 8f, color);
-                AddDecorPiece(decoRoot.transform, "CouchBack", square, new Vector3(0f, 0.12f, 0f), new Vector3(0.62f, 0.12f, 1f), 8f, color);
+                case 0:
+                    AddDecorPiece(decoRoot.transform, "SofaBase", global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(), new Vector3(0f, -0.04f, 0f), new Vector3(0.62f, 0.26f, 1f), 0f, furniture, 9);
+                    AddDecorPiece(decoRoot.transform, "SofaBack", global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(), new Vector3(0f, 0.12f, 0f), new Vector3(0.68f, 0.14f, 1f), 0f, Color.Lerp(furniture, Color.black, 0.1f), 10);
+                    AddDecorPiece(decoRoot.transform, "Lamp", global::DontLetThemIn.RuntimeSpriteFactory.GetCircleSprite(), new Vector3(0.22f, 0.14f, 0f), new Vector3(0.12f, 0.12f, 1f), 0f, accent, 11);
+                    break;
+                case 1:
+                    AddDecorPiece(decoRoot.transform, "Rug", global::DontLetThemIn.RuntimeSpriteFactory.GetPaperSprite(), Vector3.zero, new Vector3(0.74f, 0.48f, 1f), 0f, new Color(0.68f, 0.54f, 0.42f, 0.46f), 8);
+                    AddDecorPiece(decoRoot.transform, "Table", global::DontLetThemIn.RuntimeSpriteFactory.GetCircleSprite(), Vector3.zero, new Vector3(0.28f, 0.28f, 1f), 0f, furniture, 9);
+                    AddDecorPiece(decoRoot.transform, "ChairLeft", global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(), new Vector3(-0.22f, -0.12f, 0f), new Vector3(0.12f, 0.08f, 1f), 0f, Color.Lerp(furniture, Color.black, 0.06f), 10);
+                    AddDecorPiece(decoRoot.transform, "ChairRight", global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(), new Vector3(0.22f, -0.12f, 0f), new Vector3(0.12f, 0.08f, 1f), 0f, Color.Lerp(furniture, Color.black, 0.06f), 10);
+                    break;
+                case 2:
+                    AddDecorPiece(decoRoot.transform, "TVStand", global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(), new Vector3(0f, -0.12f, 0f), new Vector3(0.44f, 0.1f, 1f), 0f, furniture, 9);
+                    AddDecorPiece(decoRoot.transform, "TV", global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(), new Vector3(0f, 0.06f, 0f), new Vector3(0.36f, 0.22f, 1f), 0f, new Color(0.12f, 0.18f, 0.24f, 1f), 10);
+                    AddDecorPiece(decoRoot.transform, "TVGlow", global::DontLetThemIn.RuntimeSpriteFactory.GetSoftCircleSprite(), new Vector3(0f, 0.02f, 0f), new Vector3(0.66f, 0.42f, 1f), 0f, new Color(0.54f, 0.8f, 1f, 0.12f), 8);
+                    break;
+                default:
+                    AddDecorPiece(decoRoot.transform, "Cabinet", global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(), new Vector3(0f, -0.02f, 0f), new Vector3(0.46f, 0.4f, 1f), 0f, furniture, 9);
+                    AddDecorPiece(decoRoot.transform, "Counter", global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite(), new Vector3(0f, 0.12f, 0f), new Vector3(0.54f, 0.08f, 1f), 0f, accent, 10);
+                    break;
             }
-            else if (variant == 1)
+        }
+
+        private void BuildGridOverlay()
+        {
+            if (_graph == null)
             {
-                AddDecorPiece(decoRoot.transform, "Table", circle, Vector3.zero, new Vector3(0.28f, 0.28f, 1f), 0f, color);
-                AddDecorPiece(decoRoot.transform, "ChairA", square, new Vector3(-0.2f, -0.14f, 0f), new Vector3(0.12f, 0.08f, 1f), 0f, color);
-                AddDecorPiece(decoRoot.transform, "ChairB", square, new Vector3(0.2f, -0.14f, 0f), new Vector3(0.12f, 0.08f, 1f), 0f, color);
+                return;
             }
-            else
+
+            Material lineMaterial = new(Shader.Find("Sprites/Default"));
+            lineMaterial.color = new Color(0.08f, 0.06f, 0.05f, 0.12f);
+
+            float minX = -0.5f;
+            float minY = -0.5f;
+            float maxX = _graph.Width - 0.5f;
+            float maxY = _graph.Height - 0.5f;
+
+            for (int x = 0; x <= _graph.Width; x++)
             {
-                AddDecorPiece(decoRoot.transform, "Tv", square, new Vector3(0f, 0.06f, 0f), new Vector3(0.36f, 0.2f, 1f), 0f, color);
-                AddDecorPiece(decoRoot.transform, "TvStand", square, new Vector3(0f, -0.12f, 0f), new Vector3(0.42f, 0.08f, 1f), 0f, color);
+                CreateLine(new Vector3(minX + x, minY, -0.1f), new Vector3(minX + x, maxY, -0.1f), lineMaterial, $"GridLine_V_{x}");
             }
+
+            for (int y = 0; y <= _graph.Height; y++)
+            {
+                CreateLine(new Vector3(minX, minY + y, -0.1f), new Vector3(maxX, minY + y, -0.1f), lineMaterial, $"GridLine_H_{y}");
+            }
+        }
+
+        private Color ResolveBaseColor(GridNode node)
+        {
+            VisualTheme theme = VisualThemeRuntime.ActiveTheme;
+            if (node.State == NodeState.Destroyed)
+            {
+                return new Color(0.08f, 0.08f, 0.08f, 1f);
+            }
+
+            if (node.State == NodeState.Blocked && node.VisualType != NodeVisualType.Wall)
+            {
+                return new Color(0.32f, 0.24f, 0.18f, 1f);
+            }
+
+            if (node.VisualType == NodeVisualType.Wall)
+            {
+                return Color.Lerp(theme.Interior.PrimaryWallColor, Color.black, 0.24f);
+            }
+
+            if (node.VisualType == NodeVisualType.Hallway)
+            {
+                return Color.Lerp(theme.Interior.PrimaryFloorTint, new Color(0.2f, 0.14f, 0.08f, 1f), 0.18f);
+            }
+
+            if (node.IsSafeRoom)
+            {
+                return Color.Lerp(theme.Interior.PrimaryFloorTint, new Color(0.76f, 0.68f, 0.46f, 1f), 0.35f);
+            }
+
+            return theme.Interior.PrimaryFloorTint;
+        }
+
+        private static Color ResolveDetailColor(GridNode node)
+        {
+            return node.VisualType switch
+            {
+                NodeVisualType.Hallway => new Color(0.24f, 0.18f, 0.12f, 1f),
+                NodeVisualType.Wall => new Color(0.42f, 0.39f, 0.35f, 1f),
+                _ => new Color(0.34f, 0.24f, 0.16f, 1f)
+            };
+        }
+
+        private static SpriteRenderer CreateRenderer(
+            Transform parent,
+            string name,
+            Sprite sprite,
+            Vector3 localPosition,
+            Vector3 localScale,
+            Color color,
+            int sortingOrder)
+        {
+            GameObject child = new(name);
+            child.transform.SetParent(parent, false);
+            child.transform.localPosition = localPosition;
+            child.transform.localScale = localScale;
+            SpriteRenderer renderer = child.AddComponent<SpriteRenderer>();
+            renderer.sprite = sprite;
+            renderer.color = color;
+            renderer.sortingOrder = sortingOrder;
+            return renderer;
+        }
+
+        private static GameObject CreateCrackOverlay(Transform parent)
+        {
+            GameObject root = new("WeakPointCrack");
+            root.transform.SetParent(parent, false);
+            Sprite crackSprite = global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite();
+            Color crackColor = new(0.36f, 0.2f, 0.16f, 0.9f);
+
+            SpriteRenderer slashA = CreateRenderer(root.transform, "SlashA", crackSprite, Vector3.zero, new Vector3(0.62f, 0.08f, 1f), crackColor, 11);
+            slashA.transform.localRotation = Quaternion.Euler(0f, 0f, 24f);
+            SpriteRenderer slashB = CreateRenderer(root.transform, "SlashB", crackSprite, new Vector3(0.08f, -0.05f, 0f), new Vector3(0.42f, 0.06f, 1f), crackColor, 11);
+            slashB.transform.localRotation = Quaternion.Euler(0f, 0f, -22f);
+            return root;
         }
 
         private static void AddDecorPiece(
@@ -351,61 +494,39 @@ namespace DontLetThemIn.Grid
             Vector3 localPosition,
             Vector3 localScale,
             float rotationZ,
-            Color color)
+            Color color,
+            int sortingOrder)
         {
-            GameObject piece = new(name);
-            piece.transform.SetParent(parent, false);
-            piece.transform.localPosition = localPosition;
-            piece.transform.localScale = localScale;
-            piece.transform.localRotation = Quaternion.Euler(0f, 0f, rotationZ);
-            SpriteRenderer renderer = piece.AddComponent<SpriteRenderer>();
-            renderer.sprite = sprite;
-            renderer.color = color;
-            renderer.sortingOrder = 6;
-        }
-
-        private void BuildGridOverlay()
-        {
-            Material lineMaterial = new(Shader.Find("Sprites/Default"));
-            lineMaterial.color = new Color(0.1f, 0.08f, 0.06f, 0.22f);
-
-            float minX = -0.5f;
-            float minY = -0.5f;
-            float maxX = _graph.Width - 0.5f;
-            float maxY = _graph.Height - 0.5f;
-
-            for (int x = 0; x <= _graph.Width; x++)
-            {
-                CreateLine(
-                    new Vector3(minX + x, minY, -0.1f),
-                    new Vector3(minX + x, maxY, -0.1f),
-                    lineMaterial,
-                    $"GridLine_V_{x}");
-            }
-
-            for (int y = 0; y <= _graph.Height; y++)
-            {
-                CreateLine(
-                    new Vector3(minX, minY + y, -0.1f),
-                    new Vector3(maxX, minY + y, -0.1f),
-                    lineMaterial,
-                    $"GridLine_H_{y}");
-            }
+            SpriteRenderer renderer = CreateRenderer(parent, name, sprite, localPosition, localScale, color, sortingOrder);
+            renderer.transform.localRotation = Quaternion.Euler(0f, 0f, rotationZ);
         }
 
         private void CreateLine(Vector3 from, Vector3 to, Material material, string name)
         {
             GameObject lineObject = new(name);
             lineObject.transform.SetParent(transform, false);
-
             LineRenderer line = lineObject.AddComponent<LineRenderer>();
             line.positionCount = 2;
             line.SetPosition(0, from);
             line.SetPosition(1, to);
             line.material = material;
-            line.startWidth = 0.016f;
-            line.endWidth = 0.016f;
-            line.sortingOrder = 7;
+            line.startWidth = 0.014f;
+            line.endWidth = 0.014f;
+            line.sortingOrder = 12;
+        }
+
+        private IEnumerator PowerSurgeFlickerRoutine()
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                _roomLightMultiplier = 0.05f;
+                yield return new WaitForSecondsRealtime(0.3f);
+                _roomLightMultiplier = 1f;
+                yield return new WaitForSecondsRealtime(0.1f);
+            }
+
+            _roomLightMultiplier = 1f;
+            _powerSurgeRoutine = null;
         }
     }
 }

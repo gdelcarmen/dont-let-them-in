@@ -4,6 +4,7 @@ using DontLetThemIn.Audio;
 using DontLetThemIn.Economy;
 using DontLetThemIn.Grid;
 using DontLetThemIn.Hazards;
+using DontLetThemIn.Visuals;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -31,6 +32,8 @@ namespace DontLetThemIn.Defenses
         private Text _feedbackText;
         private Button _barricadeButton;
         private Text _barricadeLabel;
+        private CanvasGroup _paletteCanvasGroup;
+        private RectTransform _paletteRootRect;
         private int _selectedDefenseIndex;
         private float _feedbackUntil;
         private bool _barricadeMode;
@@ -146,6 +149,12 @@ namespace DontLetThemIn.Defenses
             if (!enabled && _placementIndicator != null)
             {
                 _placementIndicator.enabled = false;
+            }
+
+            if (_paletteCanvasGroup != null && _paletteRootRect != null)
+            {
+                _paletteCanvasGroup.alpha = enabled ? 1f : 0.82f;
+                _paletteRootRect.anchoredPosition = enabled ? new Vector2(0f, 0f) : new Vector2(0f, -44f);
             }
         }
 
@@ -399,6 +408,11 @@ namespace DontLetThemIn.Defenses
             }
 
             _defenses.Add(defense);
+            if (!runtimeSpawn)
+            {
+                PlayPlacementFeedback(defenseObject.transform, defenseData);
+            }
+
             DefensePlaced?.Invoke(defense);
             return true;
         }
@@ -490,8 +504,15 @@ namespace DontLetThemIn.Defenses
 
         private bool TryGetNodeForScreenPosition(Vector2 inputPosition, out GridNode node)
         {
-            Vector3 world = _camera.ScreenToWorldPoint(
-                new Vector3(inputPosition.x, inputPosition.y, -_camera.transform.position.z));
+            Ray ray = _camera.ScreenPointToRay(inputPosition);
+            Plane plane = new(Vector3.forward, Vector3.zero);
+            if (!plane.Raycast(ray, out float enter))
+            {
+                node = null;
+                return false;
+            }
+
+            Vector3 world = ray.GetPoint(enter);
             Vector2Int gridPosition = new(Mathf.RoundToInt(world.x), Mathf.RoundToInt(world.y));
             return _graph.TryGetNode(gridPosition, out node);
         }
@@ -593,9 +614,10 @@ namespace DontLetThemIn.Defenses
 
             _placementIndicator.enabled = true;
             _placementIndicator.transform.position = node.WorldPosition + new Vector3(0f, 0f, -0.25f);
+            float pulse = 0.78f + Mathf.Sin(Time.unscaledTime * 8f) * 0.18f;
             _placementIndicator.color = valid
-                ? new Color(0.38f, 0.94f, 0.5f, 0.35f)
-                : new Color(1f, 0.28f, 0.28f, 0.28f);
+                ? new Color(0.42f, 0.96f, 0.56f, 0.26f * pulse)
+                : new Color(1f, 0.28f, 0.28f, 0.22f * pulse);
         }
 
         private void BuildPaletteUI()
@@ -633,10 +655,12 @@ namespace DontLetThemIn.Defenses
             rootRect.pivot = new Vector2(0.5f, 0f);
             rootRect.anchoredPosition = new Vector2(0f, 0f);
             rootRect.sizeDelta = new Vector2(980f, 168f);
+            _paletteRootRect = rootRect;
+            _paletteCanvasGroup = root.AddComponent<CanvasGroup>();
 
             Image rootImage = root.AddComponent<Image>();
             rootImage.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetPaperSprite();
-            rootImage.color = new Color(0.88f, 0.82f, 0.72f, 0.92f);
+            rootImage.color = VisualThemeRuntime.ActiveTheme.Ui.DefenseCardBackgroundColor;
 
             GameObject headerObject = new("PaletteHeader");
             headerObject.transform.SetParent(root.transform, false);
@@ -651,7 +675,7 @@ namespace DontLetThemIn.Defenses
             headerText.font = font;
             headerText.fontSize = 17;
             headerText.alignment = TextAnchor.MiddleCenter;
-            headerText.color = new Color(0.9f, 0.92f, 0.95f, 0.95f);
+            headerText.color = Color.Lerp(VisualThemeRuntime.ActiveTheme.Ui.HudTextColor, VisualThemeRuntime.ActiveTheme.Ui.HudAccentColor, 0.35f);
             headerText.text = "DEFENSE PALETTE";
 
             GameObject scrollObject = new("PaletteScroll");
@@ -719,7 +743,7 @@ namespace DontLetThemIn.Defenses
             _feedbackText.font = font;
             _feedbackText.fontSize = 19;
             _feedbackText.alignment = TextAnchor.MiddleCenter;
-            _feedbackText.color = Color.white;
+            _feedbackText.color = VisualThemeRuntime.ActiveTheme.Ui.HudTextColor;
             _feedbackText.text = string.Empty;
             _feedbackText.gameObject.SetActive(false);
 
@@ -740,7 +764,7 @@ namespace DontLetThemIn.Defenses
 
             Image image = buttonObject.AddComponent<Image>();
             image.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetPaperSprite();
-            image.color = new Color(0.77f, 0.69f, 0.58f, 0.96f);
+            image.color = VisualThemeRuntime.ActiveTheme.Ui.DefenseCardBackgroundColor;
 
             CreateButtonBorder(buttonObject.transform);
 
@@ -758,7 +782,7 @@ namespace DontLetThemIn.Defenses
             swatchRect.anchoredPosition = new Vector2(10f, 0f);
             swatchRect.sizeDelta = new Vector2(26f, 26f);
             Image swatchImage = swatch.AddComponent<Image>();
-            swatchImage.color = data.DisplayColor;
+            swatchImage.color = Color.Lerp(data.DisplayColor, Color.white, 0.08f);
 
             GameObject labelObject = new("Label");
             labelObject.transform.SetParent(buttonObject.transform, false);
@@ -772,7 +796,7 @@ namespace DontLetThemIn.Defenses
             label.font = font;
             label.fontSize = 15;
             label.alignment = TextAnchor.MiddleLeft;
-            label.color = Color.white;
+            label.color = VisualThemeRuntime.ActiveTheme.Ui.HudTextColor;
             label.text = $"{data.DefenseName}\n{data.ScrapCost} Scrap";
 
             return new PaletteEntry
@@ -798,7 +822,7 @@ namespace DontLetThemIn.Defenses
 
             Image image = buttonObject.AddComponent<Image>();
             image.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetPaperSprite();
-            image.color = new Color(0.77f, 0.69f, 0.58f, 0.96f);
+            image.color = VisualThemeRuntime.ActiveTheme.Ui.DefenseCardBackgroundColor;
             CreateButtonBorder(buttonObject.transform);
 
             Button button = buttonObject.AddComponent<Button>();
@@ -817,7 +841,7 @@ namespace DontLetThemIn.Defenses
             _barricadeLabel.font = font;
             _barricadeLabel.fontSize = 15;
             _barricadeLabel.alignment = TextAnchor.MiddleCenter;
-            _barricadeLabel.color = Color.white;
+            _barricadeLabel.color = VisualThemeRuntime.ActiveTheme.Ui.HudTextColor;
             _barricadeLabel.text = "Barricade\nWeak Point\n30 Scrap";
             return button;
         }
@@ -843,8 +867,8 @@ namespace DontLetThemIn.Defenses
                 entry.Button.interactable = affordable;
 
                 Color color = selected
-                    ? new Color(0.62f, 0.52f, 0.38f, 0.96f)
-                    : new Color(0.77f, 0.69f, 0.58f, 0.96f);
+                    ? Color.Lerp(VisualThemeRuntime.ActiveTheme.Ui.DefenseCardBackgroundColor, VisualThemeRuntime.ActiveTheme.Ui.HudAccentColor, 0.26f)
+                    : VisualThemeRuntime.ActiveTheme.Ui.DefenseCardBackgroundColor;
 
                 if (!affordable)
                 {
@@ -870,8 +894,8 @@ namespace DontLetThemIn.Defenses
                     _barricadeButton.interactable = affordable;
 
                     Color color = _barricadeMode
-                        ? new Color(0.52f, 0.58f, 0.72f, 0.96f)
-                        : new Color(0.77f, 0.69f, 0.58f, 0.96f);
+                        ? Color.Lerp(VisualThemeRuntime.ActiveTheme.Ui.DefenseCardBackgroundColor, new Color(0.52f, 0.7f, 0.92f, 1f), 0.42f)
+                        : VisualThemeRuntime.ActiveTheme.Ui.DefenseCardBackgroundColor;
 
                     if (!affordable)
                     {
@@ -901,6 +925,89 @@ namespace DontLetThemIn.Defenses
             _feedbackText.color = color;
             _feedbackText.gameObject.SetActive(true);
             _feedbackUntil = Time.unscaledTime + FeedbackDuration;
+        }
+
+        private void PlayPlacementFeedback(Transform defenseTransform, DefenseData defenseData)
+        {
+            StartCoroutine(PlacementAnimationRoutine(defenseTransform));
+
+            if (!Application.isPlaying || defenseTransform == null)
+            {
+                return;
+            }
+
+            GameObject burstObject = new("PlacementBurst");
+            burstObject.transform.position = defenseTransform.position + new Vector3(0f, 0f, -0.3f);
+            ParticleSystem system = burstObject.AddComponent<ParticleSystem>();
+            ParticleSystem.MainModule main = system.main;
+            main.loop = false;
+            main.startLifetime = 0.24f;
+            main.startSpeed = 1.2f;
+            main.startSize = 0.12f;
+            main.maxParticles = 20;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.startColor = ResolvePlacementBurstColor(defenseData);
+
+            ParticleSystem.EmissionModule emission = system.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 10) });
+
+            ParticleSystem.ShapeModule shape = system.shape;
+            shape.shapeType = ParticleSystemShapeType.Circle;
+            shape.radius = 0.1f;
+
+            ParticleSystemRenderer renderer = burstObject.GetComponent<ParticleSystemRenderer>();
+            renderer.material = new Material(Shader.Find("Sprites/Default"));
+            renderer.sortingOrder = 60;
+
+            system.Play();
+            Destroy(burstObject, 1f);
+        }
+
+        private static IEnumerator PlacementAnimationRoutine(Transform defenseTransform)
+        {
+            if (defenseTransform == null)
+            {
+                yield break;
+            }
+
+            Vector3 endScale = defenseTransform.localScale;
+            Vector3 startScale = endScale * 0.2f;
+            Vector3 overshoot = endScale * 1.12f;
+            float elapsed = 0f;
+
+            while (elapsed < 0.12f)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                defenseTransform.localScale = Vector3.Lerp(startScale, overshoot, elapsed / 0.12f);
+                yield return null;
+            }
+
+            elapsed = 0f;
+            while (elapsed < 0.08f)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                defenseTransform.localScale = Vector3.Lerp(overshoot, endScale, elapsed / 0.08f);
+                yield return null;
+            }
+
+            defenseTransform.localScale = endScale;
+        }
+
+        private static Color ResolvePlacementBurstColor(DefenseData defenseData)
+        {
+            if (defenseData == null)
+            {
+                return new Color(0.9f, 0.82f, 0.52f, 0.95f);
+            }
+
+            return defenseData.Category switch
+            {
+                DefenseCategory.A => new Color(1f, 0.7f, 0.32f, 0.95f),
+                DefenseCategory.B => new Color(1f, 0.48f, 0.34f, 0.95f),
+                DefenseCategory.C => new Color(0.76f, 0.62f, 0.44f, 0.95f),
+                _ => new Color(0.42f, 0.86f, 1f, 0.95f)
+            };
         }
 
         private void UpdateFeedbackVisibility()
@@ -935,7 +1042,7 @@ namespace DontLetThemIn.Defenses
             borderRect.offsetMax = new Vector2(-2f, -2f);
             Image borderImage = border.AddComponent<Image>();
             borderImage.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetSquareSprite();
-            borderImage.color = new Color(0.45f, 0.35f, 0.24f, 0.7f);
+            borderImage.color = VisualThemeRuntime.ActiveTheme.Ui.DefenseCardBorderColor;
             borderImage.raycastTarget = false;
             border.transform.SetAsFirstSibling();
         }

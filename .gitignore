@@ -58,3 +58,14 @@ coverage/
 TestResults/
 artifacts/
 .lint/
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Python pipeline caches and generated output
+.pytest_cache/
+tools/asset_pipeline/output/
+tools/asset_pipeline/deps/
+tools/asset_pipeline/deps/**/.venv/
+tools/asset_pipeline/deps/**/.git/

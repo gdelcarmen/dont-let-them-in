@@ -1,0 +1,17 @@
+style_name: dlti_base
+base_prompt_template: "Stylized low-poly {asset_description}, cartoonish proportions, chunky clean shapes, game asset, {palette_keywords}, {art_style_keywords}, {camera_angle}, {background} background, studio lighting, single object centered, no text, no watermark"
+negative_prompt: "photorealistic, complex background, multiple objects, text overlay, watermark, blurry, noisy, high detail skin texture, realistic proportions, dark lighting"
+color_palette_keywords:
+  - "warm cream tones"
+  - "soft wood colors"
+  - "warm lamplight yellow"
+  - "cold blue-white glow"
+  - "bioluminescent green accents"
+art_style_keywords:
+  - "stylized"
+  - "cartoonish"
+  - "low-poly"
+  - "chunky"
+background_preference: "white"
+camera_angle_preference: "3/4 top-down view"
+output_dimensions: [1024, 1024]

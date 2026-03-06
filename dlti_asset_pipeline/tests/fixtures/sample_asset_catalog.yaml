@@ -1,0 +1,10 @@
+assets:
+  - asset_name: couch
+    category: furniture
+    description: "fixture couch"
+  - asset_name: grey_scout
+    category: enemy
+    description: "fixture grey scout"
+  - asset_name: wooden_door
+    category: environmental
+    description: "fixture wooden door"

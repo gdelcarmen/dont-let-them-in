@@ -1,0 +1,15 @@
+image_generator:
+  backend: mock
+  default_resolution: [1024, 1024]
+  default_quality: medium
+reconstructor:
+  backend: mock
+  device_preference: cpu
+  output_format: glb
+storage:
+  base_output_directory: "./tests_output"
+  registry_directory: "./tests_output/registry"
+  experiment_log_path: "./tests_output/experiment_log.jsonl"
+  viewer_directory: "./tests_output/viewers"
+quality_gate:
+  enforced: false

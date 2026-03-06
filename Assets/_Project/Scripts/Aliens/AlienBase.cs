@@ -51,6 +51,7 @@ namespace DontLetThemIn.Aliens
 
             _health = Mathf.Max(1f, Data != null ? Data.MaxHealth : 10f);
             IsAlive = true;
+            EnsureShadow();
 
             _graph.NodeChanged += OnGraphChanged;
             RecalculatePath();
@@ -110,6 +111,7 @@ namespace DontLetThemIn.Aliens
 
             _health -= finalDamage;
             Damaged?.Invoke(this, finalDamage);
+            StartCoroutine(HitFlashRoutine());
             if (_health <= 0f)
             {
                 Die();
@@ -306,10 +308,14 @@ namespace DontLetThemIn.Aliens
 
         private IEnumerator DeathRoutine()
         {
-            SpriteRenderer spriteRenderer = GetComponent<SpriteRenderer>();
             Vector3 startScale = transform.localScale;
             Vector3 endScale = Vector3.zero;
-            Color startColor = spriteRenderer != null ? spriteRenderer.color : Color.white;
+            SpriteRenderer[] renderers = GetComponentsInChildren<SpriteRenderer>();
+            Color[] startColors = new Color[renderers.Length];
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                startColors[i] = renderers[i].color;
+            }
             float elapsed = 0f;
             const float duration = 0.3f;
 
@@ -319,11 +325,11 @@ namespace DontLetThemIn.Aliens
                 float t = Mathf.Clamp01(elapsed / duration);
                 transform.localScale = Vector3.Lerp(startScale, endScale, t);
 
-                if (spriteRenderer != null)
+                for (int i = 0; i < renderers.Length; i++)
                 {
-                    Color c = startColor;
-                    c.a = Mathf.Lerp(startColor.a, 0f, t);
-                    spriteRenderer.color = c;
+                    Color c = startColors[i];
+                    c.a = Mathf.Lerp(startColors[i].a, 0f, t);
+                    renderers[i].color = c;
                 }
 
                 yield return null;
@@ -383,6 +389,50 @@ namespace DontLetThemIn.Aliens
             else
             {
                 DestroyImmediate(target);
+            }
+        }
+
+        private void EnsureShadow()
+        {
+            if (transform.Find("Shadow") != null)
+            {
+                return;
+            }
+
+            GameObject shadow = new("Shadow");
+            shadow.transform.SetParent(transform, false);
+            shadow.transform.localPosition = new Vector3(0.08f, -0.14f, 0f);
+            shadow.transform.localScale = new Vector3(0.5f, 0.24f, 1f);
+            SpriteRenderer renderer = shadow.AddComponent<SpriteRenderer>();
+            renderer.sprite = global::DontLetThemIn.RuntimeSpriteFactory.GetSoftCircleSprite();
+            renderer.color = new Color(0f, 0f, 0f, 0.24f);
+            renderer.sortingOrder = 18;
+            shadow.transform.SetAsFirstSibling();
+        }
+
+        private IEnumerator HitFlashRoutine()
+        {
+            SpriteRenderer[] renderers = GetComponentsInChildren<SpriteRenderer>();
+            if (renderers.Length == 0)
+            {
+                yield break;
+            }
+
+            Color[] originalColors = new Color[renderers.Length];
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                originalColors[i] = renderers[i].color;
+                renderers[i].color = Color.white;
+            }
+
+            yield return null;
+
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i] != null)
+                {
+                    renderers[i].color = originalColors[i];
+                }
             }
         }
 
